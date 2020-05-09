@@ -20,7 +20,7 @@ var sessionPool = sync.Pool{
 }
 
 type Session struct {
-	mu            sync.Mutex
+	lock          sync.RWMutex
 	tx            *sql.Tx
 	daoMap        map[string]*Dao
 	daoModelCache *modelLruCache
@@ -35,10 +35,18 @@ func NewSession(ctx context.Context) *Session {
 }
 
 func (ds *Session) Get(model Modeller) *Dao {
-	ds.mu.Lock()
-	defer ds.mu.Unlock()
 	t := reflect.Indirect(reflect.ValueOf(model)).Type()
 	name := t.Name()
+
+	ds.lock.RLock()
+	if value, ok := ds.daoMap[name]; ok {
+		ds.lock.RUnlock()
+		return value
+	}
+	ds.lock.RUnlock()
+
+	ds.lock.Lock()
+	defer ds.lock.Unlock()
 	if value, ok := ds.daoMap[name]; ok {
 		return value
 	}
@@ -87,10 +95,7 @@ func (ds *Session) SubmitTransaction() {
 }
 
 func (ds *Session) InTransaction() bool {
-	if ds.tx == nil {
-		return false
-	}
-	return true
+	return ds.tx != nil
 }
 
 func (ds *Session) Close() {

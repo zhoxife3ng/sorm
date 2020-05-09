@@ -33,12 +33,9 @@ func (bm *BaseModel) Loaded() bool {
 }
 
 func (bm *BaseModel) Load(forUpdate bool, force ...bool) Modeller {
-	if ! forUpdate && (bm.loaded == false || len(force) > 0 && force[0]) {
-		userSlave := true
-		if bm.dao.GetDaoSession().InTransaction() {
-			userSlave = false
-		}
-		return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), userSlave)
+	if !forUpdate && (bm.loaded == false || len(force) > 0 && force[0]) {
+		// 主键查询直接走主库
+		return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), false)
 	}
 	return bm.dao.Select(forUpdate, bm.indexValues...)
 }

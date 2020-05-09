@@ -11,7 +11,7 @@ func TitleCasedName(name string) string {
 		case upNextChar:
 			upNextChar = false
 			if 'a' <= chr && chr <= 'z' {
-				chr -= ('a' - 'A')
+				chr -= 'a' - 'A'
 			}
 		case chr == '_':
 			upNextChar = true
@@ -24,12 +24,17 @@ func TitleCasedName(name string) string {
 
 func TitleSnakeName(name string) string {
 	newStr := make([]rune, 0)
+	firstChr := true
 	for _, chr := range name {
 		if 'A' <= chr && chr <= 'Z' {
-			newStr = append(newStr, '_', chr+'a'-'A')
+			if !firstChr {
+				newStr = append(newStr, '_')
+			}
+			newStr = append(newStr, chr+'a'-'A')
 		} else {
 			newStr = append(newStr, chr)
 		}
+		firstChr = false
 	}
-	return string(newStr[1:])
+	return string(newStr)
 }
