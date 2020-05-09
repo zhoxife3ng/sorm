@@ -53,11 +53,6 @@ func (d *Dao) newModel(data map[string]interface{}) Modeller {
 	return model
 }
 
-func (d *Dao) afterScanModel(model Modeller, loaded bool) {
-	model.initBase(d, model, loaded)
-	d.save(model)
-}
-
 func (d *Dao) buildWhere(indexes ...interface{}) map[string]interface{} {
 	if len(d.indexFields) != len(indexes) {
 		exception.ThrowMsg("dao.buildWhere index number error", ModelRuntimeError)
@@ -94,7 +89,8 @@ func (d *Dao) createOneFromRows(rows *sql.Rows) Modeller {
 func (d *Dao) createOne(data map[string]interface{}, loaded bool) Modeller {
 	model := d.newModel(data)
 	d.CheckError(util.ScanStruct(data, model, defaultTagName))
-	d.afterScanModel(model, loaded)
+	model.initBase(d, model, loaded)
+	d.save(model)
 	return model
 }
 
@@ -110,7 +106,8 @@ func (d *Dao) createMulti(data []map[string]interface{}) []Modeller {
 		model := d.newModel(v)
 		d.CheckError(util.ScanStruct(v, model, defaultTagName))
 		modelIs = append(modelIs, model)
-		d.afterScanModel(model, true)
+		model.initBase(d, model, true)
+		d.save(model)
 	}
 	return modelIs
 }
@@ -142,8 +139,7 @@ func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
 func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modeller {
 	cond, vals, err := builder.BuildInsert(d.GetTableName(), []map[string]interface{}{data})
 	d.CheckError(err)
-	result, err := d.GetDaoSession().Exec(cond, vals...)
-	d.CheckError(err)
+	result := d.ExecWithSql(cond, vals)
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		exception.ThrowMsg("dao.Insert error", ModelRuntimeError)
 	}
@@ -158,19 +154,18 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 	}
 	var m = d.newModel(data)
 	d.CheckError(util.ScanStruct(data, m, defaultTagName))
-	d.afterScanModel(m, true)
+	d.save(m)
 	return m
 }
 
 func (d *Dao) Update(model Modeller, data map[string]interface{}) int64 {
 	cond, vals, err := builder.BuildUpdate(d.GetTableName(), d.buildWhere(model.IndexValues()...), data)
 	d.CheckError(err)
-	result, err := d.GetDaoSession().Exec(cond, vals...)
-	d.CheckError(err)
+	result := d.ExecWithSql(cond, vals)
 	affected, _ := result.RowsAffected()
 	if affected == 1 {
 		util.ScanStruct(data, model, defaultTagName)
-		d.afterScanModel(model, true)
+		d.save(model)
 	}
 	return affected
 }
@@ -178,8 +173,10 @@ func (d *Dao) Update(model Modeller, data map[string]interface{}) int64 {
 func (d *Dao) Remove(model Modeller) {
 	cond, vals, err := builder.BuildDelete(d.GetTableName(), d.buildWhere(model.IndexValues()...))
 	d.CheckError(err)
-	_, err = d.GetDaoSession().Exec(cond, vals...)
-	d.CheckError(err)
+	result := d.ExecWithSql(cond, vals)
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		d.notFoundError.Throw()
+	}
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, useSlave ...bool) Modeller {
