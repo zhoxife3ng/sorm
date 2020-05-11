@@ -5,7 +5,7 @@ import (
 	"github.com/didi/gendry/builder"
 	"github.com/x554462/go-exception"
 	"github.com/x554462/sorm/db"
-	"github.com/x554462/sorm/util"
+	"github.com/x554462/sorm/internal"
 	"reflect"
 )
 
@@ -88,7 +88,7 @@ func (d *Dao) createOneFromRows(rows *sql.Rows) Modeller {
 // 创建单个model对象
 func (d *Dao) createOne(data map[string]interface{}, loaded bool) Modeller {
 	model := d.newModel(data)
-	d.CheckError(util.ScanStruct(data, model, defaultTagName))
+	d.CheckError(internal.ScanStruct(data, model, defaultTagName))
 	model.initBase(d, model, loaded)
 	d.saveCache(model)
 	return model
@@ -104,7 +104,7 @@ func (d *Dao) createMulti(data []map[string]interface{}) []Modeller {
 	modelIs := make([]Modeller, 0)
 	for _, v := range data {
 		model := d.newModel(v)
-		d.CheckError(util.ScanStruct(v, model, defaultTagName))
+		d.CheckError(internal.ScanStruct(v, model, defaultTagName))
 		modelIs = append(modelIs, model)
 		model.initBase(d, model, true)
 		d.saveCache(model)
@@ -118,7 +118,7 @@ func (d *Dao) update(model Modeller, data map[string]interface{}) int64 {
 	result := d.ExecWithSql(cond, vals)
 	affected, _ := result.RowsAffected()
 	if affected == 1 {
-		util.ScanStruct(data, model, defaultTagName)
+		internal.ScanStruct(data, model, defaultTagName)
 		d.saveCache(model)
 	}
 	return affected
@@ -175,7 +175,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 		}
 	}
 	var m = d.newModel(data)
-	d.CheckError(util.ScanStruct(data, m, defaultTagName))
+	d.CheckError(internal.ScanStruct(data, m, defaultTagName))
 	d.saveCache(m)
 	return m
 }
