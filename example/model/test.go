@@ -10,7 +10,7 @@ var TestNotFoundError = exception.New("Test记录未找到", sorm.ModelNotFoundE
 
 type Test struct {
 	sorm.BaseModel
-	Id   sql.NullInt64  `db:"id,pk"`
+	Id   int            `db:"id,pk"`
 	Name sql.NullString `db:"name"`
 }
 

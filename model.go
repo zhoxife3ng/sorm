@@ -12,8 +12,11 @@ type Modeller interface {
 	initBase(dao *Dao, m Modeller, loaded bool)
 	GetNotFoundError() exception.ErrorWrapper
 	IndexValues() []interface{}
+	GetDao() *Dao
 	Loaded() bool
 	Load(forUpdate bool, force ...bool) Modeller
+	Update(set map[string]interface{}) int64
+	Remove()
 }
 
 type BaseModel struct {
@@ -28,6 +31,10 @@ func (bm *BaseModel) initBase(dao *Dao, m Modeller, loaded bool) {
 	bm.loaded = loaded
 }
 
+func (bm *BaseModel) GetDao() *Dao {
+	return bm.dao
+}
+
 func (bm *BaseModel) Loaded() bool {
 	return bm.loaded
 }
@@ -38,6 +45,14 @@ func (bm *BaseModel) Load(forUpdate bool, force ...bool) Modeller {
 		return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), false)
 	}
 	return bm.dao.Select(forUpdate, bm.indexValues...)
+}
+
+func (bm *BaseModel) Update(set map[string]interface{}) int64 {
+	return bm.dao.update(bm.dao.Select(false, bm.indexValues...), set)
+}
+
+func (bm *BaseModel) Remove() {
+	bm.dao.remove(bm.dao.Select(false, bm.indexValues...))
 }
 
 func (bm *BaseModel) GetNotFoundError() exception.ErrorWrapper {
