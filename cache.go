@@ -9,22 +9,22 @@ import (
 	"sync"
 )
 
-func (d *Dao) query(indexes ...interface{}) Modeller {
+func (d *Dao) queryCache(indexes ...interface{}) Modeller {
 	key := d.buildKey(indexes...)
-	if m, err := d.GetDaoSession().daoModelCache.Get(key); err == nil {
+	if m, err := d.Session().daoModelCache.Get(key); err == nil {
 		return m
 	}
 	return nil
 }
 
-func (d *Dao) remove(indexes ...interface{}) {
+func (d *Dao) removeCache(indexes ...interface{}) {
 	key := d.buildKey(indexes...)
-	d.GetDaoSession().daoModelCache.Del(key)
+	d.Session().daoModelCache.Del(key)
 }
 
-func (d *Dao) save(model Modeller) {
+func (d *Dao) saveCache(model Modeller) {
 	key := d.buildKey(model.IndexValues()...)
-	d.GetDaoSession().daoModelCache.Put(key, model)
+	d.Session().daoModelCache.Put(key, model)
 }
 
 func (d *Dao) buildKey(indexes ...interface{}) string {

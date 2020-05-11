@@ -34,41 +34,41 @@ func NewSession(ctx context.Context) *Session {
 	return sess
 }
 
-func (ds *Session) Get(model Modeller) *Dao {
+func (s *Session) GetDao(model Modeller) *Dao {
 	t := reflect.Indirect(reflect.ValueOf(model)).Type()
 	name := t.Name()
 
-	ds.lock.RLock()
-	if value, ok := ds.daoMap[name]; ok {
-		ds.lock.RUnlock()
+	s.lock.RLock()
+	if value, ok := s.daoMap[name]; ok {
+		s.lock.RUnlock()
 		return value
 	}
-	ds.lock.RUnlock()
+	s.lock.RUnlock()
 
-	ds.lock.Lock()
-	defer ds.lock.Unlock()
-	if value, ok := ds.daoMap[name]; ok {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
 	tableName, indexFields := parseTableInfo(t)
 	if len(indexFields) != len(model.IndexValues()) {
-		exception.ThrowMsg("dao.initDao: model indexFields error", ModelRuntimeError)
+		exception.ThrowMsg("session.GetDao: orm model indexFields error", ModelRuntimeError)
 	}
 	dao := &Dao{
 		tableName:     tableName,
 		indexFields:   indexFields,
 		notFoundError: model.GetNotFoundError(),
-		daoSession:    ds,
+		session:       s,
 		modelType:     t,
 	}
-	ds.daoMap[name] = dao
+	s.daoMap[name] = dao
 	return dao
 }
 
-func (ds *Session) BeginTransaction() {
-	if ds.tx == nil {
+func (s *Session) BeginTransaction() {
+	if s.tx == nil {
 		var err error
-		if ds.tx, err = db.GetInstance().Begin(); err != nil {
+		if s.tx, err = db.GetInstance().Begin(); err != nil {
 			log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
 		}
 	} else {
@@ -76,52 +76,52 @@ func (ds *Session) BeginTransaction() {
 	}
 }
 
-func (ds *Session) RollbackTransaction() {
-	if ds.tx != nil {
-		if err := ds.tx.Rollback(); err != nil {
+func (s *Session) RollbackTransaction() {
+	if s.tx != nil {
+		if err := s.tx.Rollback(); err != nil {
 			log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
 		}
-		ds.tx = nil
+		s.tx = nil
 	}
 }
 
-func (ds *Session) SubmitTransaction() {
-	if ds.tx != nil {
-		if err := ds.tx.Commit(); err != nil {
+func (s *Session) SubmitTransaction() {
+	if s.tx != nil {
+		if err := s.tx.Commit(); err != nil {
 			log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
 		}
-		ds.tx = nil
+		s.tx = nil
 	}
 }
 
-func (ds *Session) InTransaction() bool {
-	return ds.tx != nil
+func (s *Session) InTransaction() bool {
+	return s.tx != nil
 }
 
-func (ds *Session) Close() {
-	if ds.tx != nil {
-		ds.RollbackTransaction()
-		ds.tx = nil
+func (s *Session) Close() {
+	if s.tx != nil {
+		s.RollbackTransaction()
+		s.tx = nil
 	}
-	ds.daoMap = make(map[string]*Dao)
-	ds.daoModelCache.Clear()
-	sessionPool.Put(ds)
+	s.daoMap = make(map[string]*Dao)
+	s.daoModelCache.Clear()
+	sessionPool.Put(s)
 }
 
-func (ds *Session) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	if ds.tx != nil {
-		return ds.tx.QueryContext(ds.ctx, query, args...)
+func (s *Session) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	if s.tx != nil {
+		return s.tx.QueryContext(s.ctx, query, args...)
 	}
-	return db.GetInstance().QueryContext(ds.ctx, query, args...)
+	return db.GetInstance().QueryContext(s.ctx, query, args...)
 }
 
-func (ds *Session) Exec(query string, args ...interface{}) (sql.Result, error) {
-	if ds.tx != nil {
-		return ds.tx.ExecContext(ds.ctx, query, args...)
+func (s *Session) Exec(query string, args ...interface{}) (sql.Result, error) {
+	if s.tx != nil {
+		return s.tx.ExecContext(s.ctx, query, args...)
 	}
-	return db.GetInstance().ExecContext(ds.ctx, query, args...)
+	return db.GetInstance().ExecContext(s.ctx, query, args...)
 }
 
-func (ds *Session) ClearAllCache() {
-	ds.daoModelCache.Clear()
+func (s *Session) ClearAllCache() {
+	s.daoModelCache.Clear()
 }

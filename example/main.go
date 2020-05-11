@@ -29,7 +29,7 @@ func main() {
 	ctx := context.TODO()
 	sess := sorm.NewSession(ctx)
 
-	a := sess.Get(&model.Test{}).Select(false, 2).Load(false)
+	a := sess.GetDao(&model.Test{}).Select(false, 2).Load(false)
 	fmt.Println(a)
 
 }

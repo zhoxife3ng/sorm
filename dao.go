@@ -19,7 +19,7 @@ type Dao struct {
 	// 记录未找到时报错
 	notFoundError exception.ErrorWrapper
 	// 绑定session
-	daoSession *Session
+	session *Session
 	// 空model，通过反射可用于构造model对象
 	modelType reflect.Type
 }
@@ -29,8 +29,8 @@ var (
 	ModelNotFoundError = exception.New("model not found error", exception.RootError)
 )
 
-func (d *Dao) GetDaoSession() *Session {
-	return d.daoSession
+func (d *Dao) Session() *Session {
+	return d.session
 }
 
 func (d *Dao) CheckError(err error) {
@@ -41,7 +41,7 @@ func (d *Dao) CheckError(err error) {
 
 func (d *Dao) newModel(data map[string]interface{}) Modeller {
 	if indexValues, ok := d.getIndexValuesFromData(data); ok {
-		if model := d.query(indexValues...); model != nil {
+		if model := d.queryCache(indexValues...); model != nil {
 			return model
 		}
 	}
@@ -90,7 +90,7 @@ func (d *Dao) createOne(data map[string]interface{}, loaded bool) Modeller {
 	model := d.newModel(data)
 	d.CheckError(util.ScanStruct(data, model, defaultTagName))
 	model.initBase(d, model, loaded)
-	d.save(model)
+	d.saveCache(model)
 	return model
 }
 
@@ -107,9 +107,32 @@ func (d *Dao) createMulti(data []map[string]interface{}) []Modeller {
 		d.CheckError(util.ScanStruct(v, model, defaultTagName))
 		modelIs = append(modelIs, model)
 		model.initBase(d, model, true)
-		d.save(model)
+		d.saveCache(model)
 	}
 	return modelIs
+}
+
+func (d *Dao) update(model Modeller, data map[string]interface{}) int64 {
+	cond, vals, err := builder.BuildUpdate(d.GetTableName(), d.buildWhere(model.IndexValues()...), data)
+	d.CheckError(err)
+	result := d.ExecWithSql(cond, vals)
+	affected, _ := result.RowsAffected()
+	if affected == 1 {
+		util.ScanStruct(data, model, defaultTagName)
+		d.saveCache(model)
+	}
+	return affected
+}
+
+func (d *Dao) remove(model Modeller) {
+	indexValues := model.IndexValues()
+	cond, vals, err := builder.BuildDelete(d.GetTableName(), d.buildWhere(indexValues...))
+	d.CheckError(err)
+	result := d.ExecWithSql(cond, vals)
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		d.notFoundError.Throw()
+	}
+	d.removeCache(indexValues...)
 }
 
 func (d *Dao) GetTableName() string {
@@ -118,18 +141,17 @@ func (d *Dao) GetTableName() string {
 
 func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
 	if forUpdate {
-		daoSession := d.GetDaoSession()
 		cond, vals, err := builder.BuildSelect(d.GetTableName(), d.buildWhere(indexes...), nil)
 		d.CheckError(err)
-		if daoSession.tx == nil {
+		if d.Session().tx == nil {
 			exception.ThrowMsg("Attempt to load for update out of transaction", ModelRuntimeError)
 		}
 		cond = cond + " FOR UPDATE"
-		row, err := daoSession.Query(cond, vals...)
+		row, err := d.Session().Query(cond, vals...)
 		d.CheckError(err)
 		return d.createOneFromRows(row)
 	}
-	obj := d.query(indexes...)
+	obj := d.queryCache(indexes...)
 	if obj != nil {
 		return obj
 	}
@@ -154,29 +176,8 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 	}
 	var m = d.newModel(data)
 	d.CheckError(util.ScanStruct(data, m, defaultTagName))
-	d.save(m)
+	d.saveCache(m)
 	return m
-}
-
-func (d *Dao) Update(model Modeller, data map[string]interface{}) int64 {
-	cond, vals, err := builder.BuildUpdate(d.GetTableName(), d.buildWhere(model.IndexValues()...), data)
-	d.CheckError(err)
-	result := d.ExecWithSql(cond, vals)
-	affected, _ := result.RowsAffected()
-	if affected == 1 {
-		util.ScanStruct(data, model, defaultTagName)
-		d.save(model)
-	}
-	return affected
-}
-
-func (d *Dao) Remove(model Modeller) {
-	cond, vals, err := builder.BuildDelete(d.GetTableName(), d.buildWhere(model.IndexValues()...))
-	d.CheckError(err)
-	result := d.ExecWithSql(cond, vals)
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		d.notFoundError.Throw()
-	}
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, useSlave ...bool) Modeller {
@@ -197,9 +198,9 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, useSlave ...b
 		err error
 	)
 	if len(useSlave) > 0 && !useSlave[0] {
-		row, err = d.GetDaoSession().Query(query, params...)
+		row, err = d.Session().Query(query, params...)
 	} else {
-		row, err = db.GetSlaveInstance().QueryContext(d.GetDaoSession().ctx, query, params...)
+		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
 	}
 	d.CheckError(err)
 	return d.createOneFromRows(row)
@@ -211,16 +212,16 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, useSlave ..
 		err error
 	)
 	if len(useSlave) > 0 && !useSlave[0] {
-		row, err = d.GetDaoSession().Query(query, params...)
+		row, err = d.Session().Query(query, params...)
 	} else {
-		row, err = db.GetSlaveInstance().QueryContext(d.GetDaoSession().ctx, query, params...)
+		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
 	}
 	d.CheckError(err)
 	return d.createMultiFromRows(row)
 }
 
 func (d *Dao) ExecWithSql(query string, params []interface{}) sql.Result {
-	result, err := d.GetDaoSession().Exec(query, params...)
+	result, err := d.Session().Exec(query, params...)
 	d.CheckError(err)
 	return result
 }
