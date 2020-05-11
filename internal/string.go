@@ -1,6 +1,10 @@
-package util
+package internal
 
-import "strings"
+import (
+	"reflect"
+	"strings"
+	"unsafe"
+)
 
 func TitleCasedName(name string) string {
 	newStr := make([]rune, 0)
@@ -37,4 +41,15 @@ func TitleSnakeName(name string) string {
 		firstChr = false
 	}
 	return string(newStr)
+}
+
+func StringToBytes(s string) (b []byte) {
+	sh := *(*reflect.StringHeader)(unsafe.Pointer(&s))
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	bh.Data, bh.Len, bh.Cap = sh.Data, sh.Len, sh.Len
+	return b
+}
+
+func BytesToString(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
 }

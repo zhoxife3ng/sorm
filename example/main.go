@@ -31,5 +31,6 @@ func main() {
 
 	a := sess.GetDao(&model.Test{}).Select(false, 2).Load(false)
 	fmt.Println(a)
+	fmt.Println(a.(*model.Test).Name.Value())
 
 }

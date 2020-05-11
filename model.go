@@ -2,7 +2,7 @@ package sorm
 
 import (
 	"github.com/x554462/go-exception"
-	"github.com/x554462/sorm/util"
+	"github.com/x554462/sorm/internal"
 	"reflect"
 	"strings"
 	"sync"
@@ -89,7 +89,7 @@ func parseTableInfo(modelType reflect.Type) (string, []string) {
 		}
 	}
 	tableInfo := tableInfo{
-		tableName:   util.TitleSnakeName(name),
+		tableName:   internal.TitleSnakeName(name),
 		indexFields: indexFields,
 	}
 	tableInfos.Store(name, tableInfo)
