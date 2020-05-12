@@ -15,7 +15,7 @@ const daoModelLruCacheSize = 50
 
 var sessionPool = sync.Pool{
 	New: func() interface{} {
-		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize)}
+		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize), daoMap: make(map[string]*Dao)}
 	},
 }
 
@@ -29,7 +29,6 @@ type Session struct {
 
 func NewSession(ctx context.Context) *Session {
 	sess := sessionPool.Get().(*Session)
-	sess.daoMap = make(map[string]*Dao)
 	sess.ctx = ctx
 	return sess
 }
@@ -105,6 +104,7 @@ func (s *Session) Close() {
 	}
 	s.daoMap = make(map[string]*Dao)
 	s.daoModelCache.Clear()
+	s.ctx = nil
 	sessionPool.Put(s)
 }
 

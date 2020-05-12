@@ -7,7 +7,6 @@ import (
 	"github.com/x554462/sorm/db"
 	"github.com/x554462/sorm/internal"
 	"reflect"
-	"strings"
 )
 
 const defaultTagName = "db"
@@ -21,7 +20,7 @@ type Dao struct {
 	notFoundError exception.ErrorWrapper
 	// 绑定session
 	session *Session
-	// 空model，通过反射可用于构造model对象
+	// 通过反射可用于构造model对象
 	modelType reflect.Type
 }
 
@@ -141,12 +140,7 @@ func (d *Dao) GetTableName() string {
 }
 
 func (d *Dao) selectTableName() string {
-	strBuilder := strings.Builder{}
-	strBuilder.Grow(len(d.tableName) + 2)
-	strBuilder.WriteString("`")
-	strBuilder.WriteString(d.tableName)
-	strBuilder.WriteString("`")
-	return strBuilder.String()
+	return "`" + d.tableName + "`"
 }
 
 func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
