@@ -7,6 +7,7 @@ import (
 	"github.com/x554462/sorm/db"
 	"github.com/x554462/sorm/internal"
 	"reflect"
+	"strings"
 )
 
 const defaultTagName = "db"
@@ -113,7 +114,7 @@ func (d *Dao) createMulti(data []map[string]interface{}) []Modeller {
 }
 
 func (d *Dao) update(model Modeller, data map[string]interface{}) int64 {
-	cond, vals, err := builder.BuildUpdate(d.GetTableName(), d.buildWhere(model.IndexValues()...), data)
+	cond, vals, err := builder.BuildUpdate(d.selectTableName(), d.buildWhere(model.IndexValues()...), data)
 	d.CheckError(err)
 	result := d.ExecWithSql(cond, vals)
 	affected, _ := result.RowsAffected()
@@ -126,7 +127,7 @@ func (d *Dao) update(model Modeller, data map[string]interface{}) int64 {
 
 func (d *Dao) remove(model Modeller) {
 	indexValues := model.IndexValues()
-	cond, vals, err := builder.BuildDelete(d.GetTableName(), d.buildWhere(indexValues...))
+	cond, vals, err := builder.BuildDelete(d.selectTableName(), d.buildWhere(indexValues...))
 	d.CheckError(err)
 	result := d.ExecWithSql(cond, vals)
 	if affected, _ := result.RowsAffected(); affected == 0 {
@@ -139,9 +140,18 @@ func (d *Dao) GetTableName() string {
 	return d.tableName
 }
 
+func (d *Dao) selectTableName() string {
+	strBuilder := strings.Builder{}
+	strBuilder.Grow(len(d.tableName) + 2)
+	strBuilder.WriteString("`")
+	strBuilder.WriteString(d.tableName)
+	strBuilder.WriteString("`")
+	return strBuilder.String()
+}
+
 func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
 	if forUpdate {
-		cond, vals, err := builder.BuildSelect(d.GetTableName(), d.buildWhere(indexes...), nil)
+		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexes...), nil)
 		d.CheckError(err)
 		if d.Session().tx == nil {
 			exception.ThrowMsg("Attempt to load for update out of transaction", ModelRuntimeError)
@@ -159,7 +169,7 @@ func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
 }
 
 func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modeller {
-	cond, vals, err := builder.BuildInsert(d.GetTableName(), []map[string]interface{}{data})
+	cond, vals, err := builder.BuildInsert(d.selectTableName(), []map[string]interface{}{data})
 	d.CheckError(err)
 	result := d.ExecWithSql(cond, vals)
 	if affected, _ := result.RowsAffected(); affected != 1 {
@@ -181,13 +191,13 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, useSlave ...bool) Modeller {
-	cond, vals, err := builder.BuildSelect(d.GetTableName(), where, nil)
+	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, nil)
 	d.CheckError(err)
 	return d.SelectOneWithSql(cond, vals)
 }
 
 func (d *Dao) SelectMulti(where map[string]interface{}, useSlave ...bool) []Modeller {
-	cond, vals, err := builder.BuildSelect(d.GetTableName(), where, nil)
+	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, nil)
 	d.CheckError(err)
 	return d.SelectMultiWithSql(cond, vals)
 }
