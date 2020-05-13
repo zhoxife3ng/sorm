@@ -49,13 +49,14 @@ func (s *Session) GetDao(model Modeller) *Dao {
 	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
-	tableName, indexFields := parseTableInfo(t)
+	tableName, indexFields, fields := parseTableInfo(t)
 	if len(indexFields) != len(model.IndexValues()) {
 		exception.ThrowMsg("session.GetDao: orm model indexFields error", ModelRuntimeError)
 	}
 	dao := &Dao{
 		tableName:     tableName,
 		indexFields:   indexFields,
+		fields:        fields,
 		notFoundError: model.GetNotFoundError(),
 		session:       s,
 		modelType:     t,

@@ -16,6 +16,8 @@ type Dao struct {
 	tableName string
 	// 主键字段
 	indexFields []string
+	// 表字段
+	fields []string
 	// 记录未找到时报错
 	notFoundError exception.ErrorWrapper
 	// 绑定session
@@ -145,7 +147,7 @@ func (d *Dao) selectTableName() string {
 
 func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
 	if forUpdate {
-		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexes...), nil)
+		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexes...), d.fields)
 		d.CheckError(err)
 		if d.Session().tx == nil {
 			exception.ThrowMsg("Attempt to load for update out of transaction", ModelRuntimeError)
@@ -185,13 +187,13 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, useSlave ...bool) Modeller {
-	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, nil)
+	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
 	d.CheckError(err)
 	return d.SelectOneWithSql(cond, vals)
 }
 
 func (d *Dao) SelectMulti(where map[string]interface{}, useSlave ...bool) []Modeller {
-	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, nil)
+	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
 	d.CheckError(err)
 	return d.SelectMultiWithSql(cond, vals)
 }
