@@ -64,17 +64,18 @@ func (bm *BaseModel) GetNotFoundError() exception.ErrorWrapper {
 type tableInfo struct {
 	tableName   string
 	indexFields []string
+	fields      []string
 }
 
 var tableInfos = sync.Map{}
 
-func parseTableInfo(modelType reflect.Type) (string, []string) {
+func parseTableInfo(modelType reflect.Type) (string, []string, []string) {
 	name := modelType.Name()
 	if v, ok := tableInfos.Load(name); ok {
 		tableInfo := v.(tableInfo)
-		return tableInfo.tableName, tableInfo.indexFields
+		return tableInfo.tableName, tableInfo.indexFields, tableInfo.fields
 	}
-	var indexFields = make([]string, 0)
+	var indexFields, fields = make([]string, 0), make([]string, 0)
 	for i := 0; i < modelType.NumField(); i++ {
 		fieldType := modelType.Field(i)
 		if tag, ok := fieldType.Tag.Lookup(defaultTagName); ok {
@@ -82,16 +83,21 @@ func parseTableInfo(modelType reflect.Type) (string, []string) {
 			if -1 != idx {
 				if tag[:idx] == "pk" {
 					indexFields = append(indexFields, tag[idx+1:])
+					fields = append(fields, tag[:idx])
 				} else if tag[idx+1:] == "pk" {
 					indexFields = append(indexFields, tag[:idx])
+					fields = append(fields, tag[idx+1:])
 				}
+			} else {
+				fields = append(fields, tag)
 			}
 		}
 	}
 	tableInfo := tableInfo{
 		tableName:   internal.TitleSnakeName(name),
 		indexFields: indexFields,
+		fields:      fields,
 	}
 	tableInfos.Store(name, tableInfo)
-	return tableInfo.tableName, tableInfo.indexFields
+	return tableInfo.tableName, tableInfo.indexFields, tableInfo.fields
 }
