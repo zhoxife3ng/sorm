@@ -83,10 +83,10 @@ func parseTableInfo(modelType reflect.Type) (string, []string, []string) {
 			if -1 != idx {
 				if tag[:idx] == "pk" {
 					indexFields = append(indexFields, tag[idx+1:])
-					fields = append(fields, tag[:idx])
+					fields = append(fields, tag[idx+1:])
 				} else if tag[idx+1:] == "pk" {
 					indexFields = append(indexFields, tag[:idx])
-					fields = append(fields, tag[idx+1:])
+					fields = append(fields, tag[:idx])
 				}
 			} else {
 				fields = append(fields, tag)
