@@ -29,8 +29,14 @@ func main() {
 	ctx := context.TODO()
 	sess := sorm.NewSession(ctx)
 
-	a := sess.GetDao(&model.Test{}).Select(false, 2).Load(false)
-	fmt.Println(a)
-	fmt.Println(a.(*model.Test).Name.Value())
+	a := sess.GetDao(&model.Test{}).Select(false, 2).Load(sorm.ForceMaster())
+	fmt.Println(a, sess.InTransaction())
+
+	sess.BeginTransaction()
+	b := sess.GetDao(&model.Test{}).Select(false, 2).Load(sorm.ForUpdate())
+	fmt.Println(b, sess.InTransaction())
+	sess.SubmitTransaction()
+
+	fmt.Println(a.(*model.Test).Name.Value(), b.(*model.Test).Name.Value())
 
 }

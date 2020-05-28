@@ -186,24 +186,28 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 	return m
 }
 
-func (d *Dao) SelectOne(where map[string]interface{}, useSlave ...bool) Modeller {
+func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) Modeller {
 	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
 	d.CheckError(err)
-	return d.SelectOneWithSql(cond, vals)
+	return d.SelectOneWithSql(cond, vals, opts...)
 }
 
-func (d *Dao) SelectMulti(where map[string]interface{}, useSlave ...bool) []Modeller {
+func (d *Dao) SelectMulti(where map[string]interface{}, opts ...option) []Modeller {
 	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
 	d.CheckError(err)
-	return d.SelectMultiWithSql(cond, vals)
+	return d.SelectMultiWithSql(cond, vals, opts...)
 }
 
-func (d *Dao) SelectOneWithSql(query string, params []interface{}, useSlave ...bool) Modeller {
+func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...option) Modeller {
 	var (
-		row *sql.Rows
-		err error
+		row     *sql.Rows
+		err     error
+		options = newOptions()
 	)
-	if len(useSlave) > 0 && !useSlave[0] {
+	for _, o := range opts {
+		o(&options)
+	}
+	if options.forceMaster {
 		row, err = d.Session().Query(query, params...)
 	} else {
 		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
@@ -212,12 +216,16 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, useSlave ...b
 	return d.createOneFromRows(row)
 }
 
-func (d *Dao) SelectMultiWithSql(query string, params []interface{}, useSlave ...bool) []Modeller {
+func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...option) []Modeller {
 	var (
-		row *sql.Rows
-		err error
+		row     *sql.Rows
+		err     error
+		options = newOptions()
 	)
-	if len(useSlave) > 0 && !useSlave[0] {
+	for _, o := range opts {
+		o(&options)
+	}
+	if options.forceMaster {
 		row, err = d.Session().Query(query, params...)
 	} else {
 		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)

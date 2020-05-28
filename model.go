@@ -14,7 +14,7 @@ type Modeller interface {
 	IndexValues() []interface{}
 	GetDao() *Dao
 	Loaded() bool
-	Load(forUpdate bool, force ...bool) Modeller
+	Load(opts ...option) Modeller
 	Update(set map[string]interface{}) int64
 	Remove()
 }
@@ -39,12 +39,15 @@ func (bm *BaseModel) Loaded() bool {
 	return bm.loaded
 }
 
-func (bm *BaseModel) Load(forUpdate bool, force ...bool) Modeller {
-	if !forUpdate && (bm.loaded == false || len(force) > 0 && force[0]) {
-		// 主键查询直接走主库
-		return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), false)
+func (bm *BaseModel) Load(opts ...option) Modeller {
+	options := newOptions()
+	for _, o := range opts {
+		o(&options)
 	}
-	return bm.dao.Select(forUpdate, bm.indexValues...)
+	if options.forUpdate {
+		return bm.dao.Select(true, bm.indexValues...)
+	}
+	return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), opts...)
 }
 
 func (bm *BaseModel) Update(set map[string]interface{}) int64 {
