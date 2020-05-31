@@ -186,6 +186,18 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 	return m
 }
 
+func (d *Dao) SelectById(id interface{}, opts ...option) Modeller {
+	options := newOptions()
+	for _, o := range opts {
+		o(&options)
+	}
+	model := d.Select(options.forUpdate, id)
+	if !options.forUpdate && (options.forceLoad || options.load) {
+		model.Load(opts...)
+	}
+	return model
+}
+
 func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) Modeller {
 	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
 	d.CheckError(err)
