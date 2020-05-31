@@ -44,8 +44,8 @@ func (bm *BaseModel) Load(opts ...option) Modeller {
 	for _, o := range opts {
 		o(&options)
 	}
-	if options.forUpdate {
-		return bm.dao.Select(true, bm.indexValues...)
+	if options.forUpdate || bm.Loaded() && !options.forceLoad {
+		return bm.dao.Select(options.forUpdate, bm.indexValues...)
 	}
 	return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), opts...)
 }
