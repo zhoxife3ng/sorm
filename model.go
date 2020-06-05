@@ -14,9 +14,9 @@ type Modeller interface {
 	IndexValues() []interface{}
 	GetDao() *Dao
 	Loaded() bool
-	Load(opts ...option) Modeller
-	Update(set map[string]interface{}) int64
-	Remove()
+	Load(opts ...option) (Modeller, error)
+	Update(set map[string]interface{}) (int64, error)
+	Remove() error
 }
 
 type BaseModel struct {
@@ -39,7 +39,7 @@ func (bm *BaseModel) Loaded() bool {
 	return bm.loaded
 }
 
-func (bm *BaseModel) Load(opts ...option) Modeller {
+func (bm *BaseModel) Load(opts ...option) (Modeller, error) {
 	options := newOptions()
 	for _, o := range opts {
 		o(&options)
@@ -50,12 +50,20 @@ func (bm *BaseModel) Load(opts ...option) Modeller {
 	return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), opts...)
 }
 
-func (bm *BaseModel) Update(set map[string]interface{}) int64 {
-	return bm.dao.update(bm.dao.Select(false, bm.indexValues...), set)
+func (bm *BaseModel) Update(set map[string]interface{}) (int64, error) {
+	model, err := bm.dao.Select(false, bm.indexValues...)
+	if err != nil {
+		return 0, err
+	}
+	return bm.dao.update(model, set)
 }
 
-func (bm *BaseModel) Remove() {
-	bm.dao.remove(bm.dao.Select(false, bm.indexValues...))
+func (bm *BaseModel) Remove() error {
+	model, err := bm.dao.Select(false, bm.indexValues...)
+	if err != nil {
+		return err
+	}
+	return bm.dao.remove(model)
 }
 
 func (bm *BaseModel) GetNotFoundError() exception.ErrorWrapper {

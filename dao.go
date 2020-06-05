@@ -31,28 +31,10 @@ var (
 	ModelNotFoundError = exception.New("model not found error", exception.RootError)
 )
 
-func (d *Dao) Session() *Session {
-	return d.session
-}
-
-func (d *Dao) CheckError(err error) {
+func (d *Dao) checkError(err error) {
 	if err != nil {
 		exception.ThrowMsgWithCallerDepth(err.Error(), ModelRuntimeError, 3)
 	}
-}
-
-func (d *Dao) newModel(data map[string]interface{}) Modeller {
-	if indexValues, ok := d.getIndexValuesFromData(data); ok {
-		if model := d.queryCache(indexValues...); model != nil {
-			return model
-		}
-	}
-	vc := reflect.New(d.modelType)
-	model, ok := vc.Interface().(Modeller)
-	if !ok {
-		exception.ThrowMsg("dao.newModel error", ModelRuntimeError)
-	}
-	return model
 }
 
 func (d *Dao) buildWhere(indexes ...interface{}) map[string]interface{} {
@@ -78,63 +60,62 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 	return indexValues, true
 }
 
-func (d *Dao) createOneFromRows(rows *sql.Rows) Modeller {
-	defer rows.Close()
-	m := d.ResolveDataFromRows(rows)
-	if len(m) < 1 {
-		d.notFoundError.Throw()
-	}
-	return d.createOne(m[0], true)
-}
-
-// 创建单个model对象
+// 创建model对象
 func (d *Dao) createOne(data map[string]interface{}, loaded bool) Modeller {
-	model := d.newModel(data)
-	d.CheckError(internal.ScanStruct(data, model, defaultTagName))
+	if indexValues, ok := d.getIndexValuesFromData(data); ok {
+		if model := d.queryCache(indexValues...); model != nil {
+			return model
+		}
+	}
+	vc := reflect.New(d.modelType)
+	model, ok := vc.Interface().(Modeller)
+	if !ok {
+		exception.ThrowMsg("dao.newModel error", ModelRuntimeError)
+	}
+	d.checkError(internal.ScanStruct(data, model, defaultTagName))
 	model.initBase(d, model, loaded)
 	d.saveCache(model)
 	return model
 }
 
-func (d *Dao) createMultiFromRows(rows *sql.Rows) []Modeller {
-	defer rows.Close()
-	return d.createMulti(d.ResolveDataFromRows(rows))
-}
-
-// 创建多个model对象
-func (d *Dao) createMulti(data []map[string]interface{}) []Modeller {
-	modelIs := make([]Modeller, 0)
-	for _, v := range data {
-		model := d.newModel(v)
-		d.CheckError(internal.ScanStruct(v, model, defaultTagName))
-		modelIs = append(modelIs, model)
-		model.initBase(d, model, true)
-		d.saveCache(model)
-	}
-	return modelIs
-}
-
-func (d *Dao) update(model Modeller, data map[string]interface{}) int64 {
+func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error) {
 	cond, vals, err := builder.BuildUpdate(d.selectTableName(), d.buildWhere(model.IndexValues()...), data)
-	d.CheckError(err)
-	result := d.ExecWithSql(cond, vals)
-	affected, _ := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	result, err := d.ExecWithSql(cond, vals)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
 	if affected == 1 {
 		internal.ScanStruct(data, model, defaultTagName)
 		d.saveCache(model)
 	}
-	return affected
+	return affected, err
 }
 
-func (d *Dao) remove(model Modeller) {
+func (d *Dao) remove(model Modeller) error {
 	indexValues := model.IndexValues()
 	cond, vals, err := builder.BuildDelete(d.selectTableName(), d.buildWhere(indexValues...))
-	d.CheckError(err)
-	result := d.ExecWithSql(cond, vals)
-	if affected, _ := result.RowsAffected(); affected == 0 {
-		d.notFoundError.Throw()
+	if err != nil {
+		return err
+	}
+	result, err := d.ExecWithSql(cond, vals)
+	if err != nil {
+		return err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return err
+	} else if affected == 0 {
+		return d.notFoundError
 	}
 	d.removeCache(indexValues...)
+	return nil
+}
+
+func (d *Dao) Session() *Session {
+	return d.session
 }
 
 func (d *Dao) GetTableName() string {
@@ -145,31 +126,57 @@ func (d *Dao) selectTableName() string {
 	return "`" + d.tableName + "`"
 }
 
-func (d *Dao) Select(forUpdate bool, indexes ...interface{}) Modeller {
+func (d *Dao) Select(forUpdate bool, indexes ...interface{}) (Modeller, error) {
 	if forUpdate {
 		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexes...), d.fields)
-		d.CheckError(err)
+		d.checkError(err)
 		if d.Session().tx == nil {
-			exception.ThrowMsg("Attempt to load for update out of transaction", ModelRuntimeError)
+			return nil, exception.New("Attempt to load for update out of transaction", ModelRuntimeError)
 		}
 		cond = cond + " FOR UPDATE"
 		row, err := d.Session().Query(cond, vals...)
-		d.CheckError(err)
-		return d.createOneFromRows(row)
+		if err != nil {
+			return nil, err
+		}
+		ms := d.ResolveModelFromRows(row)
+		if len(ms) < 1 {
+			return nil, d.notFoundError
+		}
+		return ms[0], nil
 	}
 	obj := d.queryCache(indexes...)
 	if obj != nil {
-		return obj
+		return obj, nil
 	}
-	return d.createOne(d.buildWhere(indexes...), false)
+	return d.createOne(d.buildWhere(indexes...), false), nil
 }
 
-func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modeller {
+func (d *Dao) SelectById(id interface{}, opts ...option) (Modeller, error) {
+	options := newOptions()
+	for _, o := range opts {
+		o(&options)
+	}
+	model, err := d.Select(options.forUpdate, id)
+	if err != nil {
+		return nil, err
+	}
+	if !options.forUpdate && (options.forceLoad || options.load) {
+		return model.Load(opts...)
+	}
+	return model, nil
+}
+
+func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) (Modeller, error) {
 	cond, vals, err := builder.BuildInsert(d.selectTableName(), []map[string]interface{}{data})
-	d.CheckError(err)
-	result := d.ExecWithSql(cond, vals)
-	if affected, _ := result.RowsAffected(); affected != 1 {
-		exception.ThrowMsg("dao.Insert error", ModelRuntimeError)
+	d.checkError(err)
+	result, err := d.ExecWithSql(cond, vals)
+	if err != nil {
+		return nil, err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return nil, err
+	} else if affected != 1 {
+		return nil, exception.New("dao.Insert error", ModelRuntimeError)
 	}
 	if len(indexes) > 0 {
 		for i, index := range indexes {
@@ -180,57 +187,48 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) Modell
 			data[d.indexFields[0]] = id
 		}
 	}
-	var m = d.newModel(data)
-	d.CheckError(internal.ScanStruct(data, m, defaultTagName))
-	d.saveCache(m)
-	return m
+	return d.createOne(data, false), nil
 }
 
-func (d *Dao) SelectById(id interface{}, opts ...option) Modeller {
-	options := newOptions()
+func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) (Modeller, error) {
+	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
+	d.checkError(err)
+	return d.SelectOneWithSql(cond, vals, opts...)
+}
+
+func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...option) (Modeller, error) {
+	var (
+		row     *sql.Rows
+		err     error
+		options = newOptions()
+	)
 	for _, o := range opts {
 		o(&options)
 	}
-	model := d.Select(options.forUpdate, id)
-	if !options.forUpdate && (options.forceLoad || options.load) {
-		model.Load(opts...)
+	if options.forceMaster {
+		row, err = d.Session().Query(query, params...)
+	} else {
+		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
 	}
-	return model
-}
-
-func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) Modeller {
-	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
-	d.CheckError(err)
-	return d.SelectOneWithSql(cond, vals, opts...)
+	if err != nil {
+		return nil, err
+	}
+	ms := d.ResolveModelFromRows(row)
+	if len(ms) < 1 {
+		return nil, d.notFoundError
+	}
+	return ms[0], nil
 }
 
 func (d *Dao) SelectMulti(where map[string]interface{}, opts ...option) []Modeller {
 	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
-	d.CheckError(err)
+	d.checkError(err)
 	return d.SelectMultiWithSql(cond, vals, opts...)
-}
-
-func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...option) Modeller {
-	var (
-		row     *sql.Rows
-		err     error
-		options = newOptions()
-	)
-	for _, o := range opts {
-		o(&options)
-	}
-	if options.forceMaster {
-		row, err = d.Session().Query(query, params...)
-	} else {
-		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
-	}
-	d.CheckError(err)
-	return d.createOneFromRows(row)
 }
 
 func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...option) []Modeller {
 	var (
-		row     *sql.Rows
+		rows    *sql.Rows
 		err     error
 		options = newOptions()
 	)
@@ -238,23 +236,44 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...opt
 		o(&options)
 	}
 	if options.forceMaster {
-		row, err = d.Session().Query(query, params...)
+		rows, err = d.Session().Query(query, params...)
 	} else {
-		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
+		rows, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
 	}
-	d.CheckError(err)
-	return d.createMultiFromRows(row)
+	d.checkError(err)
+	return d.ResolveModelFromRows(rows)
 }
 
-func (d *Dao) ExecWithSql(query string, params []interface{}) sql.Result {
-	result, err := d.Session().Exec(query, params...)
-	d.CheckError(err)
-	return result
+func (d *Dao) ExecWithSql(query string, params []interface{}) (sql.Result, error) {
+	return d.Session().Exec(query, params...)
+}
+
+func (d *Dao) ResolveModelFromRows(rows *sql.Rows) []Modeller {
+	defer rows.Close()
+	columns, err := rows.Columns()
+	d.checkError(err)
+	length := len(columns)
+	values := make([]interface{}, length, length)
+	for i := 0; i < length; i++ {
+		values[i] = new(interface{})
+	}
+	var data = make([]Modeller, 0)
+	for rows.Next() {
+		err = rows.Scan(values...)
+		d.checkError(err)
+		mp := make(map[string]interface{})
+		for idx, name := range columns {
+			mp[name] = *(values[idx].(*interface{}))
+		}
+		data = append(data, d.createOne(mp, true))
+	}
+	return data
 }
 
 func (d *Dao) ResolveDataFromRows(rows *sql.Rows) []map[string]interface{} {
+	defer rows.Close()
 	columns, err := rows.Columns()
-	d.CheckError(err)
+	d.checkError(err)
 	length := len(columns)
 	values := make([]interface{}, length, length)
 	for i := 0; i < length; i++ {
@@ -263,7 +282,7 @@ func (d *Dao) ResolveDataFromRows(rows *sql.Rows) []map[string]interface{} {
 	var data = make([]map[string]interface{}, 0)
 	for rows.Next() {
 		err = rows.Scan(values...)
-		d.CheckError(err)
+		d.checkError(err)
 		mp := make(map[string]interface{})
 		for idx, name := range columns {
 			mp[name] = *(values[idx].(*interface{}))
