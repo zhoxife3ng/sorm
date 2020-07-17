@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/x554462/go-exception"
 	"github.com/x554462/sorm/db"
 	"log"
 	"reflect"
@@ -50,9 +49,6 @@ func (s *Session) GetDao(model Modeller) *Dao {
 		return value
 	}
 	tableName, indexFields, fields := parseTableInfo(t)
-	if len(indexFields) != len(model.IndexValues()) {
-		exception.ThrowMsg("session.GetDao: orm model indexFields error", ModelRuntimeError)
-	}
 	dao := &Dao{
 		tableName:     tableName,
 		indexFields:   indexFields,

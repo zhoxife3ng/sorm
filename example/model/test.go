@@ -14,12 +14,6 @@ type Test struct {
 	Name _type.String `db:"name"`
 }
 
-var _ sorm.Modeller = (*Test)(nil)
-
-func (t *Test) IndexValues() []interface{} {
-	return []interface{}{t.Id}
-}
-
 func (t *Test) GetNotFoundError() exception.ErrorWrapper {
 	return TestNotFoundError
 }
