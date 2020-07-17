@@ -9,7 +9,7 @@ import (
 )
 
 type Modeller interface {
-	initBase(dao *Dao, m Modeller, loaded bool)
+	initBase(dao *Dao, indexValues []interface{}, loaded bool)
 	GetNotFoundError() exception.ErrorWrapper
 	IndexValues() []interface{}
 	GetDao() *Dao
@@ -25,10 +25,10 @@ type BaseModel struct {
 	indexValues []interface{}
 }
 
-func (bm *BaseModel) initBase(dao *Dao, m Modeller, loaded bool) {
+func (bm *BaseModel) initBase(dao *Dao, indexValues []interface{}, loaded bool) {
 	bm.dao = dao
-	bm.indexValues = m.IndexValues()
 	bm.loaded = loaded
+	bm.indexValues = indexValues
 }
 
 func (bm *BaseModel) GetDao() *Dao {
@@ -64,6 +64,10 @@ func (bm *BaseModel) Remove() error {
 		return err
 	}
 	return bm.dao.remove(model)
+}
+
+func (bm *BaseModel) IndexValues() []interface{} {
+	return bm.indexValues
 }
 
 func (bm *BaseModel) GetNotFoundError() exception.ErrorWrapper {

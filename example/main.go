@@ -32,9 +32,13 @@ func main() {
 		testModel := new(model.Test)
 
 		// 通过selectById查询主键id为1的记录
-		a, _ := sess.GetDao(testModel).SelectById(1, sorm.Load())
-		fmt.Println(a, a.(*model.Test).Name.Value())
-
+		a, err := sess.GetDao(testModel).SelectById(5, sorm.Load())
+		if err != nil {
+			fmt.Println("selectById(1) err: ", err)
+		} else {
+			fmt.Printf("%+v\n", a)
+			fmt.Println(a, a.(*model.Test).Name.Value())
+		}
 		sess.BeginTransaction()
 		// 在事务里面查询id为2的记录并加forupdate锁，调用Select方法会进行缓存，下次查询时直接返回缓存对象
 		b, _ := sess.GetDao(testModel).Select(false, 2)
@@ -45,18 +49,20 @@ func main() {
 		testDao := sess.GetDao(testModel)
 
 		// 通过SelectOne查询单条记录
-		c, _ := testDao.SelectOne(map[string]interface{}{
+		c, err := testDao.SelectOne(map[string]interface{}{
 			"id": 3,
 		})
-		fmt.Println(c, c.(*model.Test).Name.Value())
-
-		// 更新一条记录
-		c.Update(map[string]interface{}{
-			"name": "test update",
-		})
-
-		// 删除一条记录
-		c.Remove()
+		if err != nil {
+			fmt.Println("selectById(3) err: ", err)
+		} else {
+			fmt.Println(c, c.(*model.Test).Name.Value())
+			// 更新一条记录
+			c.Update(map[string]interface{}{
+				"name": "test update",
+			})
+			// 删除一条记录
+			c.Remove()
+		}
 
 		// 通过SelectMulti查询多条记录
 		for _, m := range testDao.SelectMulti(map[string]interface{}{

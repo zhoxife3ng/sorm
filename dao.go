@@ -61,19 +61,25 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 }
 
 // 创建model对象
-func (d *Dao) createOne(data map[string]interface{}, loaded bool) Modeller {
-	if indexValues, ok := d.getIndexValuesFromData(data); ok {
-		if model := d.queryCache(indexValues...); model != nil {
+func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, loaded bool) Modeller {
+	var (
+		model Modeller
+		ok    bool
+	)
+	if indexValues, ok = d.getIndexValuesFromData(data); ok {
+		if model = d.queryCache(indexValues...); model != nil && !loaded {
 			return model
 		}
 	}
-	vc := reflect.New(d.modelType)
-	model, ok := vc.Interface().(Modeller)
-	if !ok {
-		exception.ThrowMsg("dao.newModel error", ModelRuntimeError)
+	if model == nil {
+		vc := reflect.New(d.modelType)
+		model, ok = vc.Interface().(Modeller)
+		if !ok {
+			exception.ThrowMsg("dao.newModel error", ModelRuntimeError)
+		}
 	}
 	d.checkError(internal.ScanStruct(data, model, defaultTagName))
-	model.initBase(d, model, loaded)
+	model.initBase(d, indexValues, loaded)
 	d.saveCache(model)
 	return model
 }
@@ -126,9 +132,9 @@ func (d *Dao) selectTableName() string {
 	return "`" + d.tableName + "`"
 }
 
-func (d *Dao) Select(forUpdate bool, indexes ...interface{}) (Modeller, error) {
+func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, error) {
 	if forUpdate {
-		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexes...), d.fields)
+		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexValues...), d.fields)
 		d.checkError(err)
 		if d.Session().tx == nil {
 			return nil, exception.New("Attempt to load for update out of transaction", ModelRuntimeError)
@@ -144,11 +150,11 @@ func (d *Dao) Select(forUpdate bool, indexes ...interface{}) (Modeller, error) {
 		}
 		return ms[0], nil
 	}
-	obj := d.queryCache(indexes...)
+	obj := d.queryCache(indexValues...)
 	if obj != nil {
 		return obj, nil
 	}
-	return d.createOne(d.buildWhere(indexes...), false), nil
+	return d.createOne(d.buildWhere(indexValues...), indexValues, false), nil
 }
 
 func (d *Dao) SelectById(id interface{}, opts ...option) (Modeller, error) {
@@ -166,7 +172,7 @@ func (d *Dao) SelectById(id interface{}, opts ...option) (Modeller, error) {
 	return model, nil
 }
 
-func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) (Modeller, error) {
+func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (Modeller, error) {
 	cond, vals, err := builder.BuildInsert(d.selectTableName(), []map[string]interface{}{data})
 	d.checkError(err)
 	result, err := d.ExecWithSql(cond, vals)
@@ -178,16 +184,17 @@ func (d *Dao) Insert(data map[string]interface{}, indexes ...interface{}) (Model
 	} else if affected != 1 {
 		return nil, exception.New("dao.Insert error", ModelRuntimeError)
 	}
-	if len(indexes) > 0 {
-		for i, index := range indexes {
+	if len(indexValues) > 0 {
+		for i, index := range indexValues {
 			data[d.indexFields[i]] = index
 		}
 	} else if len(d.indexFields) == 1 {
 		if id, err := result.LastInsertId(); err == nil {
 			data[d.indexFields[0]] = id
+			indexValues[0] = id
 		}
 	}
-	return d.createOne(data, false), nil
+	return d.createOne(data, indexValues, false), nil
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) (Modeller, error) {
@@ -257,7 +264,10 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) []Modeller {
 	for i := 0; i < length; i++ {
 		values[i] = new(interface{})
 	}
-	var data = make([]Modeller, 0)
+	var (
+		data        = make([]Modeller, 0)
+		indexValues = make([]interface{}, 0, len(d.indexFields))
+	)
 	for rows.Next() {
 		err = rows.Scan(values...)
 		d.checkError(err)
@@ -265,7 +275,11 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) []Modeller {
 		for idx, name := range columns {
 			mp[name] = *(values[idx].(*interface{}))
 		}
-		data = append(data, d.createOne(mp, true))
+		for _, indexField := range d.indexFields {
+			indexValues = append(indexValues, mp[indexField])
+		}
+		data = append(data, d.createOne(mp, indexValues, true))
+		indexValues = indexValues[0:0]
 	}
 	return data
 }
