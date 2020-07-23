@@ -14,6 +14,6 @@ type Test struct {
 	Name _type.String `db:"name"`
 }
 
-func (t *Test) GetNotFoundError() exception.ErrorWrapper {
+func (t *Test) GetNotFoundError() error {
 	return TestNotFoundError
 }

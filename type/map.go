@@ -22,6 +22,12 @@ func (m *Map) IsZero() bool {
 	return !m.t.Valid
 }
 
+func (m *Map) Set(mp map[string]interface{}) {
+	b, _ := internal.JsonMarshal(mp)
+	m.t.String = internal.BytesToString(b)
+	m.t.Valid = true
+}
+
 func (m *Map) Scan(value interface{}) error {
 	return m.t.Scan(value)
 }

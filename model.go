@@ -1,7 +1,6 @@
 package sorm
 
 import (
-	"github.com/x554462/go-exception"
 	"github.com/x554462/sorm/internal"
 	"reflect"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 type Modeller interface {
 	initBase(dao *Dao, indexValues []interface{}, loaded bool)
-	GetNotFoundError() exception.ErrorWrapper
+	GetNotFoundError() error
 	IndexValues() []interface{}
 	GetDao() *Dao
 	Loaded() bool
@@ -70,7 +69,7 @@ func (bm *BaseModel) IndexValues() []interface{} {
 	return bm.indexValues
 }
 
-func (bm *BaseModel) GetNotFoundError() exception.ErrorWrapper {
+func (bm *BaseModel) GetNotFoundError() error {
 	return ModelNotFoundError
 }
 
