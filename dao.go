@@ -2,8 +2,8 @@ package sorm
 
 import (
 	"database/sql"
-	"github.com/didi/gendry/builder"
 	"github.com/x554462/go-exception"
+	"github.com/x554462/sorm/builder"
 	"github.com/x554462/sorm/db"
 	"github.com/x554462/sorm/internal"
 	"reflect"
@@ -19,7 +19,7 @@ type Dao struct {
 	// 表字段
 	fields []string
 	// 记录未找到时报错
-	notFoundError exception.ErrorWrapper
+	notFoundError error
 	// 绑定session
 	session *Session
 	// 通过反射可用于构造model对象
@@ -85,11 +85,11 @@ func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, 
 }
 
 func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error) {
-	cond, vals, err := builder.BuildUpdate(d.selectTableName(), d.buildWhere(model.IndexValues()...), data)
+	cond, params, err := builder.Update().Table(d.GetTableName()).Set(data).Where(d.buildWhere(model.IndexValues()...)).Build()
 	if err != nil {
 		return 0, err
 	}
-	result, err := d.ExecWithSql(cond, vals)
+	result, err := d.ExecWithSql(cond, params)
 	if err != nil {
 		return 0, err
 	}
@@ -103,11 +103,11 @@ func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error)
 
 func (d *Dao) remove(model Modeller) error {
 	indexValues := model.IndexValues()
-	cond, vals, err := builder.BuildDelete(d.selectTableName(), d.buildWhere(indexValues...))
+	cond, params, err := builder.Delete().Table(d.GetTableName()).Where(d.buildWhere(indexValues...)).Build()
 	if err != nil {
 		return err
 	}
-	result, err := d.ExecWithSql(cond, vals)
+	result, err := d.ExecWithSql(cond, params)
 	if err != nil {
 		return err
 	}
@@ -134,13 +134,12 @@ func (d *Dao) selectTableName() string {
 
 func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, error) {
 	if forUpdate {
-		cond, vals, err := builder.BuildSelect(d.selectTableName(), d.buildWhere(indexValues...), d.fields)
+		cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(d.buildWhere(indexValues...)).Tail("FOR UPDATE").Build()
 		d.checkError(err)
 		if d.Session().tx == nil {
 			return nil, exception.New("Attempt to load for update out of transaction", ModelRuntimeError)
 		}
-		cond = cond + " FOR UPDATE"
-		row, err := d.Session().Query(cond, vals...)
+		row, err := d.Session().Query(cond, params...)
 		if err != nil {
 			return nil, err
 		}
@@ -173,16 +172,16 @@ func (d *Dao) SelectById(id interface{}, opts ...option) (Modeller, error) {
 }
 
 func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (Modeller, error) {
-	cond, vals, err := builder.BuildInsert(d.selectTableName(), []map[string]interface{}{data})
+	cond, params, err := builder.Insert().Table(d.GetTableName()).Values(data).Build()
 	d.checkError(err)
-	result, err := d.ExecWithSql(cond, vals)
+	result, err := d.ExecWithSql(cond, params)
 	if err != nil {
 		return nil, err
 	}
 	if affected, err := result.RowsAffected(); err != nil {
 		return nil, err
 	} else if affected != 1 {
-		return nil, exception.New("dao.Insert error", ModelRuntimeError)
+		return nil, exception.New("dao.baseInsert error", ModelRuntimeError)
 	}
 	if len(indexValues) > 0 {
 		for i, index := range indexValues {
@@ -198,9 +197,9 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (M
 }
 
 func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) (Modeller, error) {
-	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
+	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	d.checkError(err)
-	return d.SelectOneWithSql(cond, vals, opts...)
+	return d.SelectOneWithSql(cond, params, opts...)
 }
 
 func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...option) (Modeller, error) {
@@ -228,9 +227,9 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...optio
 }
 
 func (d *Dao) SelectMulti(where map[string]interface{}, opts ...option) []Modeller {
-	cond, vals, err := builder.BuildSelect(d.selectTableName(), where, d.fields)
+	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	d.checkError(err)
-	return d.SelectMultiWithSql(cond, vals, opts...)
+	return d.SelectMultiWithSql(cond, params, opts...)
 }
 
 func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...option) []Modeller {

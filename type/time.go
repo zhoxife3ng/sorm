@@ -17,6 +17,11 @@ func (t *Time) IsZero() bool {
 	return !t.t.Valid
 }
 
+func (t *Time) Set(tm time.Time) {
+	t.t.Time = tm
+	t.t.Valid = true
+}
+
 func (t *Time) Scan(value interface{}) error {
 	return t.t.Scan(value)
 }

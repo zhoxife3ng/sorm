@@ -14,6 +14,11 @@ func (f *Float) IsZero() bool {
 	return !f.t.Valid
 }
 
+func (f *Float) Set(ft float64) {
+	f.t.Float64 = ft
+	f.t.Valid = true
+}
+
 func (f *Float) Scan(value interface{}) error {
 	return f.t.Scan(value)
 }
