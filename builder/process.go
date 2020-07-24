@@ -244,8 +244,12 @@ func (u *baseUpdate) processSet() (string, error) {
 		if i > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(quoteIdentifier(v))
-		str.WriteString(" = ?")
+		if strings.Contains(v, PlaceHolder) {
+			str.WriteString(v)
+		} else {
+			str.WriteString(quoteIdentifier(v))
+			str.WriteString("=?")
+		}
 	}
 	return str.String(), nil
 }
@@ -289,12 +293,12 @@ func (i *baseInsert) processInsert() (string, error) {
 		str.WriteString(quoteIdentifier(v))
 	}
 	str.WriteString(") VALUES")
-	for j := 0; j < len(i.params); j += len(columns) {
+	for j := 0; j < len(i.params); j += 1 {
 		if j > 0 {
 			str.WriteString(", ")
 		}
 		str.WriteString("(")
-		str.WriteString(strings.Repeat(", ?", len(columns))[2:])
+		str.WriteString(strings.Repeat(",?", len(columns))[1:])
 		str.WriteString(")")
 	}
 	return str.String(), nil
