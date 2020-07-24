@@ -128,10 +128,6 @@ func (d *Dao) GetTableName() string {
 	return d.tableName
 }
 
-func (d *Dao) selectTableName() string {
-	return "`" + d.tableName + "`"
-}
-
 func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, error) {
 	if forUpdate {
 		cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(d.buildWhere(indexValues...)).Tail("FOR UPDATE").Build()

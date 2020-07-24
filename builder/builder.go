@@ -1,8 +1,16 @@
 package builder
 
 import (
+	"errors"
 	"strings"
 	"sync"
+)
+
+var (
+	ErrBuildPlaceHolder  = errors.New("[builder] place holder num does not match with values num")
+	ErrNotSupportProcess = errors.New("[builder] not support process")
+	ErrProcessOrder      = errors.New("[builder] process order error")
+	ErrProcessSet        = errors.New("[builder] process set error")
 )
 
 var (
@@ -10,7 +18,7 @@ var (
 	builderOnce sync.Once
 )
 
-func getStrB() *strings.Builder {
+func getStrBuilder() *strings.Builder {
 	builderOnce.Do(func() {
 		builder = sync.Pool{New: func() interface{} {
 			return &strings.Builder{}
@@ -19,9 +27,9 @@ func getStrB() *strings.Builder {
 	return builder.Get().(*strings.Builder)
 }
 
-func putStrB(strB *strings.Builder) {
-	strB.Reset()
-	builder.Put(strB)
+func putStrBuilder(str *strings.Builder) {
+	str.Reset()
+	builder.Put(str)
 }
 
 type SqlBuilder interface {
@@ -58,8 +66,8 @@ var insertSeq = []func(*baseInsert) (string, error){
 }
 
 func (s *baseSelect) Build() (string, []interface{}, error) {
-	var sqlStr = getStrB()
-	defer putStrB(sqlStr)
+	var sqlStr = getStrBuilder()
+	defer putStrBuilder(sqlStr)
 	for _, m := range selectSeq {
 		sql, err := m(s)
 		if err != nil {
@@ -75,8 +83,8 @@ func (s *baseSelect) Build() (string, []interface{}, error) {
 }
 
 func (u *baseUpdate) Build() (string, []interface{}, error) {
-	var sqlStr = getStrB()
-	defer putStrB(sqlStr)
+	var sqlStr = getStrBuilder()
+	defer putStrBuilder(sqlStr)
 	for _, m := range updateSeq {
 		sql, err := m(u)
 		if err != nil {
@@ -91,8 +99,8 @@ func (u *baseUpdate) Build() (string, []interface{}, error) {
 	return sqlStr.String(), u.params, nil
 }
 func (d *baseDelete) Build() (string, []interface{}, error) {
-	var sqlStr = getStrB()
-	defer putStrB(sqlStr)
+	var sqlStr = getStrBuilder()
+	defer putStrBuilder(sqlStr)
 	for _, m := range deleteSeq {
 		sql, err := m(d)
 		if err != nil {
@@ -107,8 +115,8 @@ func (d *baseDelete) Build() (string, []interface{}, error) {
 	return sqlStr.String(), d.params, nil
 }
 func (i *baseInsert) Build() (string, []interface{}, error) {
-	var sqlStr = getStrB()
-	defer putStrB(sqlStr)
+	var sqlStr = getStrBuilder()
+	defer putStrBuilder(sqlStr)
 	for _, m := range insertSeq {
 		sql, err := m(i)
 		if err != nil {

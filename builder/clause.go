@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"github.com/x554462/sorm/builder/predicate"
 	"strings"
 )
 
@@ -12,29 +11,37 @@ type clause struct {
 func buildPredicate(where interface{}, values ...interface{}) *Predicate {
 	var (
 		wherePredicate = NewPredicate()
-		combination    = CombinedByAnd
+		combination    = defaultCombination
 	)
 	switch w := where.(type) {
 	case string:
 		var predicateIfe Predicator
-		if strings.Contains(w, predicate.PlaceHolder) {
-			predicateIfe = predicate.NewExpression(w, values...)
+		if strings.Contains(w, PlaceHolder) {
+			if strings.Count(w, PlaceHolder) != len(values) {
+				predicateIfe = ErrExpression(ErrBuildPlaceHolder)
+			} else {
+				predicateIfe = NewExpression(w, values...)
+			}
 		} else if len(values) > 0 {
 			if len(values) == 1 {
 				if values[0] == nil {
 					if strings.Index(w, "!") == 0 {
-						predicateIfe = predicate.NewIsNotNull(w[1:])
+						predicateIfe = isNotNull(w[1:])
 					} else {
-						predicateIfe = predicate.NewIsNull(w)
+						predicateIfe = isNull(w)
 					}
 				} else {
-					predicateIfe = predicate.NewOperator(w, predicate.OpEq, values[0])
+					if strings.Index(w, "!") == 0 {
+						predicateIfe = operate(w[1:], OpNe, values[0])
+					} else {
+						predicateIfe = operate(w, OpEq, values[0])
+					}
 				}
 			} else {
 				if strings.Index(w, "!") == 0 {
-					predicateIfe = predicate.NewNotIn(w[1:], values...)
+					predicateIfe = notIn(w[1:], values...)
 				} else {
-					predicateIfe = predicate.NewIn(w, values...)
+					predicateIfe = in(w, values...)
 				}
 			}
 		}
@@ -42,29 +49,33 @@ func buildPredicate(where interface{}, values ...interface{}) *Predicate {
 	case map[string]interface{}:
 		for key, value := range w {
 			var predicateIfe Predicator
-			if strings.Contains(key, predicate.PlaceHolder) {
+			if strings.Contains(key, PlaceHolder) {
 				if v, ok := value.([]interface{}); ok {
-					predicateIfe = predicate.NewExpression(key, v...)
+					if strings.Count(key, PlaceHolder) != len(v) {
+						predicateIfe = ErrExpression(ErrBuildPlaceHolder)
+					} else {
+						predicateIfe = NewExpression(key, v...)
+					}
 				} else {
-					predicateIfe = predicate.NewExpression(key, value)
+					predicateIfe = NewExpression(key, value)
 				}
 			} else if value == nil {
 				if strings.Index(key, "!") == 0 {
-					predicateIfe = predicate.NewIsNotNull(key[1:])
+					predicateIfe = isNotNull(key[1:])
 				} else {
-					predicateIfe = predicate.NewIsNull(key)
+					predicateIfe = isNull(key)
 				}
 			} else if v, ok := value.([]interface{}); ok {
 				if strings.Index(key, "!") == 0 {
-					predicateIfe = predicate.NewNotIn(key[1:], v...)
+					predicateIfe = notIn(key[1:], v...)
 				} else {
-					predicateIfe = predicate.NewIn(key, v...)
+					predicateIfe = in(key, v...)
 				}
 			} else {
 				if strings.Index(key, "!") == 0 {
-					predicateIfe = predicate.NewOperator(key[1:], predicate.OpNe, value)
+					predicateIfe = operate(key[1:], OpNe, value)
 				} else {
-					predicateIfe = predicate.NewOperator(key, predicate.OpEq, value)
+					predicateIfe = operate(key, OpEq, value)
 				}
 			}
 			wherePredicate.AddPredicate(predicateIfe, combination)
@@ -89,12 +100,92 @@ func EmptyClause() *clause {
 	return &clause{buildPredicate(nil)}
 }
 
-func (w *clause) Or(where interface{}, values ...interface{}) *clause {
-	w.predicate.AddPredicate(buildPredicate(where, values...), CombinedByOr)
-	return w
+func (c *clause) Or(where interface{}, values ...interface{}) *clause {
+	c.predicate.AddPredicate(buildPredicate(where, values...), CombinedByOr)
+	return c
 }
 
-func (w *clause) And(where interface{}, values ...interface{}) *clause {
-	w.predicate.AddPredicate(buildPredicate(where, values...), CombinedByAnd)
-	return w
+func (c *clause) And(where interface{}, values ...interface{}) *clause {
+	c.predicate.AddPredicate(buildPredicate(where, values...), CombinedByAnd)
+	return c
+}
+
+func (c *clause) EqualTo(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpEq, value), defaultCombination)
+	return c
+}
+
+func (c *clause) NotEqualTo(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpNe, value), defaultCombination)
+	return c
+}
+
+func (c *clause) Like(identifier, value string) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpLike, value), defaultCombination)
+	return c
+}
+
+func (c *clause) NotLike(identifier, value string) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpNotLike, value), defaultCombination)
+	return c
+}
+
+func (c *clause) LessThan(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpLt, value), defaultCombination)
+	return c
+}
+
+func (c *clause) LessThanOrEqualTo(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpLte, value), defaultCombination)
+	return c
+}
+
+func (c *clause) GreaterThan(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpGt, value), defaultCombination)
+	return c
+}
+
+func (c *clause) GreaterThanOrEqualTo(identifier string, value interface{}) *clause {
+	c.predicate.AddPredicate(operate(identifier, OpGte, value), defaultCombination)
+	return c
+}
+
+func (c *clause) Between(identifier string, minValue, maxValue interface{}) *clause {
+	c.predicate.AddPredicate(between(identifier, minValue, maxValue), defaultCombination)
+	return c
+}
+
+func (c *clause) NotBetween(identifier string, minValue, maxValue interface{}) *clause {
+	c.predicate.AddPredicate(notBetween(identifier, minValue, maxValue), defaultCombination)
+	return c
+}
+
+func (c *clause) Exists(specification string, values ...interface{}) *clause {
+	c.predicate.AddPredicate(exists(specification, values...), defaultCombination)
+	return c
+}
+
+func (c *clause) NotExists(specification string, values ...interface{}) *clause {
+	c.predicate.AddPredicate(notExists(specification, values...), defaultCombination)
+	return c
+}
+
+func (c *clause) In(identifier string, values ...interface{}) *clause {
+	c.predicate.AddPredicate(in(identifier, values...), defaultCombination)
+	return c
+}
+
+func (c *clause) NotIn(identifier string, values ...interface{}) *clause {
+	c.predicate.AddPredicate(notIn(identifier, values...), defaultCombination)
+	return c
+}
+
+func (c *clause) IsNull(identifier string) *clause {
+	c.predicate.AddPredicate(isNull(identifier), defaultCombination)
+	return c
+}
+
+func (c *clause) IsNotNull(identifier string) *clause {
+	c.predicate.AddPredicate(isNotNull(identifier), defaultCombination)
+	return c
 }

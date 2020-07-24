@@ -2,7 +2,6 @@ package builder
 
 import (
 	"fmt"
-	"github.com/x554462/sorm/builder/predicate"
 )
 
 const (
@@ -32,34 +31,9 @@ func NewPredicate() *Predicate {
 	}
 }
 
-func (p *Predicate) EqualTo(left string, right interface{}) *Predicate {
-	p.AddPredicate(predicate.NewOperator(left, predicate.OpEq, right), p.nextPredicateCombineOperator)
-	return p
-}
-
-func (p *Predicate) Between(identifier string, minValue, maxValue interface{}) *Predicate {
-	p.AddPredicate(predicate.NewBetween(identifier, minValue, maxValue), p.nextPredicateCombineOperator)
-	return p
-}
-
-func (p *Predicate) Exists(specification string, values ...interface{}) *Predicate {
-	p.AddPredicate(predicate.NewExists(specification, values...), p.nextPredicateCombineOperator)
-	return p
-}
-
-func (p *Predicate) Or() *Predicate {
-	p.nextPredicateCombineOperator = CombinedByOr
-	return p
-}
-
-func (p *Predicate) And() *Predicate {
-	p.nextPredicateCombineOperator = CombinedByAnd
-	return p
-}
-
 func (p *Predicate) AddPredicate(predicate Predicator, combination string) *Predicate {
 	if predicate != nil {
-		if specs, err := predicate.GetExpressionData(); err == nil && len(specs) > 0 {
+		if specs, _ := predicate.GetExpressionData(); len(specs) > 0 {
 			if combination == CombinedByOr {
 				p.OrPredicate(predicate)
 			} else {
