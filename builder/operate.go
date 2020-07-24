@@ -29,6 +29,7 @@ func quoteTable(table string) string {
 }
 func resolveIdentifier(identifier string) (name string, alias string) {
 	var s []string
+	identifier = strings.Trim(identifier, " ")
 	lowerTable := strings.ToLower(identifier)
 	if strings.Contains(lowerTable, " as ") {
 		asIndex := strings.Index(lowerTable, " as ")

@@ -42,7 +42,7 @@ func (s *baseSelect) processSelect() (string, error) {
 			for _, c := range joinAttr.columns {
 				str.WriteString(", ")
 				if !strings.Contains(c, ".") {
-					str.WriteString(aliasTableName)
+					str.WriteString(quoteTable(aliasTableName))
 					str.WriteString(".")
 					str.WriteString(quoteIdentifier(c))
 				} else {
@@ -172,13 +172,20 @@ func (s *baseSelect) processOrder() (string, error) {
 		if i > 0 {
 			str.WriteString(", ")
 		}
-		o := strings.Split(order, " ")
-		if len(o) != 2 {
-			return "", ErrProcessOrder
+		o := strings.Split(strings.Trim(order, " "), " ")
+		if len(o) > 0 && len(o) < 3 {
+			str.WriteString(quoteIdentifier(o[0]))
+			str.WriteString(" ")
+			var sort = "ASC"
+			if len(o) == 2 && o[1] != "" {
+				sort = strings.ToUpper(strings.Trim(o[1], " "))
+			}
+			if sort == "ASC" || sort == "DESC" {
+				str.WriteString(sort)
+				continue
+			}
 		}
-		str.WriteString(quoteIdentifier(o[0]))
-		str.WriteString(" ")
-		str.WriteString(strings.Trim(o[1], " "))
+		return "", ErrProcessOrder
 	}
 	return str.String(), nil
 }
