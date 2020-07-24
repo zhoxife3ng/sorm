@@ -128,5 +128,12 @@ func (i *baseInsert) Build() (string, []interface{}, error) {
 			sqlStr.WriteString(sql)
 		}
 	}
-	return sqlStr.String(), i.params, nil
+	var params = make([]interface{}, 0)
+	for _, p := range i.params {
+		params = append(params, p...)
+		for j := len(p); j < len(i.columns); j++ {
+			params = append(params, nil)
+		}
+	}
+	return sqlStr.String(), params, nil
 }
