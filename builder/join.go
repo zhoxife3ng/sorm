@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"github.com/x554462/sorm/builder/predicate"
 	"strings"
 )
 
@@ -35,11 +34,11 @@ func (j *join) GetJoins() []joinAttr {
 
 func (j *join) join(name string, on []string, joinType string, columns ...string) *join {
 	for i, onv := range on {
-		on[i] = predicate.QuoteIdentifier(onv)
+		on[i] = quoteIdentifier(onv)
 	}
 	j.joins = append(j.joins, joinAttr{
 		name:    name,
-		on:      strings.Join(on, " = "),
+		on:      strings.Join(on, "="),
 		columns: columns,
 		typo:    joinType,
 	})

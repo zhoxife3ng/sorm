@@ -49,7 +49,7 @@ func TestBaseSelect_Build(t *testing.T) {
 				},
 				group: []string{"department"},
 				having: map[string]interface{}{
-					"`id` > ?": 0,
+					"`id`>?": 0,
 				},
 				order:  []string{"age DESC", "score ASC"},
 				limit:  0,
@@ -57,7 +57,7 @@ func TestBaseSelect_Build(t *testing.T) {
 				tail:   "FOR UPDATE",
 			},
 			out: outStruct{
-				cond:   "SELECT `tb`.`id`, `tb`.`name`, `tb`.`age` FROM `tb` WHERE `foo` = ? AND `qq` = ? AND `age` IN (?, ?, ?, ?, ?) AND `faith` != ? AND ((`aa` = ? AND `bb` = ?) OR (`cc` = ? AND `dd` IN (?, ?))) GROUP BY `department` HAVING `id` > ? ORDER BY `age` DESC, `score` ASC LIMIT ? OFFSET ? FOR UPDATE",
+				cond:   "SELECT `tb`.`id`, `tb`.`name`, `tb`.`age` FROM `tb` WHERE `foo`=? AND `qq`=? AND `age` IN (?,?,?,?,?) AND `faith`!=? AND ((`aa`=? AND `bb`=?) OR (`cc`=? AND `dd` IN (?,?))) GROUP BY `department` HAVING `id`>? ORDER BY `age` DESC, `score` ASC LIMIT ? OFFSET ? FOR UPDATE",
 				params: []interface{}{"bar", "tt", 1, 3, 5, 7, 9, "Muslim", 11, "xswl", "234", 7, 8, 0, 0, 100},
 				err:    nil,
 			},
@@ -74,7 +74,7 @@ func TestBaseSelect_Build(t *testing.T) {
 				offset: -1,
 			},
 			out: outStruct{
-				cond:   "SELECT `tb`.* FROM `tb` WHERE `foo` = ? AND `foo2` = ? FOR UPDATE",
+				cond:   "SELECT `tb`.* FROM `tb` WHERE `foo`=? AND `foo2`=? FOR UPDATE",
 				params: []interface{}{"bar", "bar2"},
 				err:    nil,
 			},

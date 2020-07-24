@@ -1,8 +1,6 @@
 package builder
 
 import (
-	"errors"
-	"github.com/x554462/sorm/builder/predicate"
 	"strings"
 )
 
@@ -14,41 +12,41 @@ func (s *baseSelect) processSelect() (string, error) {
 		selectJoin       = s.join
 	)
 
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("SELECT ")
 	if selectQuantifier != "" {
 		str.WriteString(selectQuantifier)
 		str.WriteString(" ")
 	}
-	_, aliasTableName := predicate.ResolveIdentifier(selectTable)
+	_, aliasTableName := resolveIdentifier(selectTable)
 	for i, c := range selectColumns {
 		if i > 0 {
 			str.WriteString(", ")
 		}
 		if !strings.Contains(c, ".") {
-			str.WriteString(predicate.QuoteTable(aliasTableName))
+			str.WriteString(quoteTable(aliasTableName))
 			str.WriteString(".")
-			str.WriteString(predicate.QuoteIdentifier(c))
+			str.WriteString(quoteIdentifier(c))
 		} else {
-			str.WriteString(predicate.QuoteIdentifier(c))
+			str.WriteString(quoteIdentifier(c))
 		}
 	}
 	if len(selectColumns) == 0 {
-		str.WriteString(predicate.QuoteTable(aliasTableName))
+		str.WriteString(quoteTable(aliasTableName))
 		str.WriteString(".*")
 	}
 	if selectJoin != nil {
 		for _, joinAttr := range selectJoin.GetJoins() {
-			_, aliasTableName := predicate.ResolveIdentifier(joinAttr.name)
+			_, aliasTableName := resolveIdentifier(joinAttr.name)
 			for _, c := range joinAttr.columns {
 				str.WriteString(", ")
 				if !strings.Contains(c, ".") {
 					str.WriteString(aliasTableName)
 					str.WriteString(".")
-					str.WriteString(predicate.QuoteIdentifier(c))
+					str.WriteString(quoteIdentifier(c))
 				} else {
-					str.WriteString(predicate.QuoteIdentifier(c))
+					str.WriteString(quoteIdentifier(c))
 				}
 			}
 		}
@@ -56,7 +54,7 @@ func (s *baseSelect) processSelect() (string, error) {
 	}
 	if selectTable != "" {
 		str.WriteString(" FROM ")
-		str.WriteString(predicate.QuoteTable(selectTable))
+		str.WriteString(quoteTable(selectTable))
 	}
 	return str.String(), nil
 }
@@ -65,10 +63,10 @@ func (s *baseSelect) processForceIndex() (string, error) {
 	if s.forceIndex == "" {
 		return "", nil
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("FORCE INDEX (")
-	str.WriteString(predicate.QuoteIdentifier(s.forceIndex))
+	str.WriteString(quoteIdentifier(s.forceIndex))
 	str.WriteString(")")
 	return str.String(), nil
 }
@@ -78,15 +76,15 @@ func (s *baseSelect) processJoins() (string, error) {
 	if join == nil || join.count() == 0 {
 		return "", nil
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	for _, joinAttr := range join.GetJoins() {
 		if str.Len() > 0 {
 			str.WriteString(" ")
 		}
 		str.WriteString(joinAttr.typo)
 		str.WriteString(" JOIN ")
-		str.WriteString(predicate.QuoteTable(joinAttr.name))
+		str.WriteString(quoteTable(joinAttr.name))
 		str.WriteString(" ON ")
 		str.WriteString(joinAttr.on)
 	}
@@ -98,21 +96,22 @@ func (s *baseSelect) processWhere() (string, error) {
 	if selectWhere == nil || selectWhere.count() == 0 {
 		return "", nil
 	}
-	var (
-		parts, _ = selectWhere.GetExpressionData()
-		where    = getStrB()
-	)
-	defer putStrB(where)
+	var parts, err = selectWhere.GetExpressionData()
+	if err != nil {
+		return "", err
+	}
+	var where = getStrBuilder()
+	defer putStrBuilder(where)
 	where.WriteString("WHERE ")
 	for _, part := range parts {
 		switch p := part.(type) {
 		case string:
 			where.WriteString(p)
-		case predicate.Expression:
+		case *Expression:
 			where.WriteString(p.GetSpecification())
 			s.addParams(p.GetValues()...)
 		default:
-			return "", errors.New("error")
+			return "", ErrNotSupportProcess
 		}
 	}
 	return where.String(), nil
@@ -123,14 +122,14 @@ func (s *baseSelect) processGroup() (string, error) {
 	if selectGroup == nil || len(selectGroup) == 0 {
 		return "", nil
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("GROUP BY ")
 	for i, group := range selectGroup {
 		if i > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(predicate.QuoteIdentifier(group))
+		str.WriteString(quoteIdentifier(group))
 	}
 	return str.String(), nil
 }
@@ -140,21 +139,22 @@ func (s *baseSelect) processHaving() (string, error) {
 	if having == nil || having.count() == 0 {
 		return "", nil
 	}
-	var (
-		parts, _ = having.GetExpressionData()
-		where    = getStrB()
-	)
-	defer putStrB(where)
+	var parts, err = having.GetExpressionData()
+	if err != nil {
+		return "", err
+	}
+	var where = getStrBuilder()
+	defer putStrBuilder(where)
 	where.WriteString("HAVING ")
 	for _, part := range parts {
 		switch p := part.(type) {
 		case string:
 			where.WriteString(p)
-		case predicate.Expression:
+		case *Expression:
 			where.WriteString(p.GetSpecification())
 			s.addParams(p.GetValues()...)
 		default:
-			return "", errors.New("error")
+			return "", ErrNotSupportProcess
 		}
 	}
 	return where.String(), nil
@@ -165,8 +165,8 @@ func (s *baseSelect) processOrder() (string, error) {
 	if selectOrder == nil || len(selectOrder) == 0 {
 		return "", nil
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("ORDER BY ")
 	for i, order := range selectOrder {
 		if i > 0 {
@@ -174,9 +174,9 @@ func (s *baseSelect) processOrder() (string, error) {
 		}
 		o := strings.Split(order, " ")
 		if len(o) != 2 {
-			return "", errors.New("order error")
+			return "", ErrProcessOrder
 		}
-		str.WriteString(predicate.QuoteIdentifier(o[0]))
+		str.WriteString(quoteIdentifier(o[0]))
 		str.WriteString(" ")
 		str.WriteString(strings.Trim(o[1], " "))
 	}
@@ -206,10 +206,10 @@ func (s *baseSelect) processTail() (string, error) {
 }
 
 func (u *baseUpdate) processUpdate() (string, error) {
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("UPDATE ")
-	str.WriteString(predicate.QuoteIdentifier(u.table))
+	str.WriteString(quoteIdentifier(u.table))
 	return str.String(), nil
 }
 
@@ -218,15 +218,15 @@ func (u *baseUpdate) processJoins() (string, error) {
 	if join == nil || join.count() == 0 {
 		return "", nil
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	for _, joinAttr := range join.GetJoins() {
 		if str.Len() > 0 {
 			str.WriteString(" ")
 		}
 		str.WriteString(joinAttr.typo)
 		str.WriteString(" JOIN ")
-		str.WriteString(predicate.QuoteTable(joinAttr.name))
+		str.WriteString(quoteTable(joinAttr.name))
 		str.WriteString(" ON ")
 		str.WriteString(joinAttr.on)
 	}
@@ -235,16 +235,16 @@ func (u *baseUpdate) processJoins() (string, error) {
 
 func (u *baseUpdate) processSet() (string, error) {
 	if u.set == nil || len(u.set) == 0 {
-		return "", errors.New("process set: empty set")
+		return "", ErrProcessSet
 	}
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("SET ")
 	for i, v := range u.set {
 		if i > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(predicate.QuoteIdentifier(v))
+		str.WriteString(quoteIdentifier(v))
 		str.WriteString(" = ?")
 	}
 	return str.String(), nil
@@ -254,21 +254,22 @@ func (u *baseUpdate) processWhere() (string, error) {
 	if u.where == nil || u.where.count() == 0 {
 		return "", nil
 	}
-	var (
-		parts, _ = u.where.GetExpressionData()
-		where    = getStrB()
-	)
-	defer putStrB(where)
+	var parts, err = u.where.GetExpressionData()
+	if err != nil {
+		return "", err
+	}
+	var where = getStrBuilder()
+	defer putStrBuilder(where)
 	where.WriteString("WHERE ")
 	for _, part := range parts {
 		switch p := part.(type) {
 		case string:
 			where.WriteString(p)
-		case predicate.Expression:
+		case *Expression:
 			where.WriteString(p.GetSpecification())
 			u.addParams(p.GetValues()...)
 		default:
-			return "", errors.New("error")
+			return "", ErrNotSupportProcess
 		}
 	}
 	return where.String(), nil
@@ -276,16 +277,16 @@ func (u *baseUpdate) processWhere() (string, error) {
 
 func (i *baseInsert) processInsert() (string, error) {
 	columns := i.columns
-	var str = getStrB()
-	defer putStrB(str)
+	var str = getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("INSERT INTO ")
-	str.WriteString(predicate.QuoteTable(i.table))
+	str.WriteString(quoteTable(i.table))
 	str.WriteString("(")
 	for c, v := range columns {
 		if c > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(predicate.QuoteIdentifier(v))
+		str.WriteString(quoteIdentifier(v))
 	}
 	str.WriteString(") VALUES")
 	for j := 0; j < len(i.params); j += len(columns) {
@@ -300,10 +301,10 @@ func (i *baseInsert) processInsert() (string, error) {
 }
 
 func (d *baseDelete) processDelete() (string, error) {
-	str := getStrB()
-	defer putStrB(str)
+	str := getStrBuilder()
+	defer putStrBuilder(str)
 	str.WriteString("DELETE FROM ")
-	str.WriteString(predicate.QuoteTable(d.table))
+	str.WriteString(quoteTable(d.table))
 	return str.String(), nil
 }
 
@@ -311,21 +312,22 @@ func (d *baseDelete) processWhere() (string, error) {
 	if d.where == nil || d.where.count() == 0 {
 		return "", nil
 	}
-	var (
-		parts, _ = d.where.GetExpressionData()
-		where    = getStrB()
-	)
-	defer putStrB(where)
+	var parts, err = d.where.GetExpressionData()
+	if err != nil {
+		return "", err
+	}
+	var where = getStrBuilder()
+	defer putStrBuilder(where)
 	where.WriteString("WHERE ")
 	for _, part := range parts {
 		switch p := part.(type) {
 		case string:
 			where.WriteString(p)
-		case predicate.Expression:
+		case *Expression:
 			where.WriteString(p.GetSpecification())
 			d.addParams(p.GetValues()...)
 		default:
-			return "", errors.New("error")
+			return "", ErrNotSupportProcess
 		}
 	}
 	return where.String(), nil
