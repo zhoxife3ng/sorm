@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"github.com/didi/gendry/manager"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 )
@@ -23,34 +23,42 @@ type Conf struct {
 func Setup(conf Conf) {
 	if dbInstance == nil {
 		var err error
-		dbInstance, err = manager.New(conf.Name, conf.User, conf.Password, conf.Host).Set(
-			manager.SetCharset("utf8"),
-			manager.SetAllowCleartextPasswords(true),
-			manager.SetInterpolateParams(true),
-		).Port(conf.Port).Open(true)
-		if err != nil {
-			log.Fatalln("dbhelper.DbInstance,", err)
+		dbInstance, err = sql.Open("mysql",
+			fmt.Sprintf(
+				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true",
+				conf.User, conf.Password, conf.Host, conf.Port, conf.Name,
+			),
+		)
+		if err == nil {
+			if err = dbInstance.Ping(); err == nil {
+				return
+			}
 		}
+		log.Fatalln("dbHelper.DbInstance,", err)
 	}
 }
 
 func SetupSlave(conf Conf) {
 	if dbInstanceSlave == nil {
 		var err error
-		dbInstanceSlave, err = manager.New(conf.Name, conf.User, conf.Password, conf.Host).Set(
-			manager.SetCharset("utf8"),
-			manager.SetAllowCleartextPasswords(true),
-			manager.SetInterpolateParams(true),
-		).Port(conf.Port).Open(true)
-		if err != nil {
-			log.Fatalln("dbhelper.DbInstanceSlave,", err)
+		dbInstanceSlave, err = sql.Open("mysql",
+			fmt.Sprintf(
+				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true",
+				conf.User, conf.Password, conf.Host, conf.Port, conf.Name,
+			),
+		)
+		if err == nil {
+			if err = dbInstance.Ping(); err == nil {
+				return
+			}
 		}
+		log.Fatalln("dbHelper.DbInstanceSlave,", err)
 	}
 }
 
 func GetInstance() *sql.DB {
 	if dbInstance == nil {
-		log.Fatalln("dbhelper.DbInstance, dbInstance is nil")
+		log.Fatalln("dbHelper.DbInstance, dbInstance is nil")
 	}
 	return dbInstance
 }
