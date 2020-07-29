@@ -186,7 +186,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (M
 	} else if len(d.indexFields) == 1 {
 		if id, err := result.LastInsertId(); err == nil {
 			data[d.indexFields[0]] = id
-			indexValues[0] = id
+			indexValues = append(indexValues, id)
 		}
 	}
 	return d.createOne(data, indexValues, false), nil
