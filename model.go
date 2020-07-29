@@ -16,6 +16,7 @@ type Modeller interface {
 	Load(opts ...option) (Modeller, error)
 	Update(set map[string]interface{}) (int64, error)
 	Remove() error
+	GetId() interface{}
 }
 
 type BaseModel struct {
