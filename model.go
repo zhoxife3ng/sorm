@@ -73,6 +73,14 @@ func (bm *BaseModel) GetNotFoundError() error {
 	return ModelNotFoundError
 }
 
+func (bm *BaseModel) GetId() interface{} {
+	indexValues := bm.IndexValues()
+	if len(indexValues) > 0 {
+		return indexValues[0]
+	}
+	return nil
+}
+
 // table info
 // 自动解析Model
 type tableInfo struct {
