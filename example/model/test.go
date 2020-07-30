@@ -12,6 +12,7 @@ type Test struct {
 	sorm.BaseModel
 	Id   int          `db:"id,pk"`
 	Name _type.String `db:"name"`
+	Time _type.Time   `db:"time"`
 }
 
 func (t *Test) GetNotFoundError() error {
