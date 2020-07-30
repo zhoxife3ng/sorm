@@ -3,13 +3,11 @@ package internal
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
+	"runtime/debug"
 	"strconv"
 	"strings"
-	"time"
-
-	"fmt"
-	"runtime/debug"
 )
 
 // refer https://github.com/didi/gendry/tree/master/scanner
@@ -194,11 +192,6 @@ func convert(mapValue interface{}, valuei reflect.Value, wrapErr convertErrWrapp
 		valuei.Set(reflect.ValueOf(mapValue))
 		return nil
 	}
-	//time.Time to string
-	switch assertT := mapValue.(type) {
-	case time.Time:
-		return handleConvertTime(assertT, mvt, vit, &valuei, wrapErr)
-	}
 
 	if scanner, ok := valuei.Addr().Interface().(sql.Scanner); ok {
 		return scanner.Scan(mapValue)
@@ -314,15 +307,6 @@ func byteUnmarshal(mapValueSlice []byte, valuei *reflect.Value, wrapErr convertE
 		valuei.Set(pt)
 	}
 	return nil
-}
-
-func handleConvertTime(assertT time.Time, mvt, vit reflect.Type, valuei *reflect.Value, wrapErr convertErrWrapper) error {
-	if vit.Kind() == reflect.String {
-		sTime := assertT.Format(cTimeFormat)
-		valuei.SetString(sTime)
-		return nil
-	}
-	return wrapErr(mvt, vit)
 }
 
 func resolveTagName(tag string) string {

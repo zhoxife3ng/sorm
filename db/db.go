@@ -25,7 +25,7 @@ func Setup(conf Conf) {
 		var err error
 		dbInstance, err = sql.Open("mysql",
 			fmt.Sprintf(
-				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true",
+				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true&loc=Local&parseTime=true",
 				conf.User, conf.Password, conf.Host, conf.Port, conf.Name,
 			),
 		)
