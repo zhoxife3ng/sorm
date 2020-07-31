@@ -8,155 +8,95 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 )
 
-// refer https://github.com/didi/gendry/tree/master/scanner
-// ByteUnmarshaler is the interface implemented by types
-// that can unmarshal a JSON description of themselves.
-// The input can be assumed to be a valid encoding of
-// a JSON value. UnmarshalByte must copy the JSON data
-// if it wishes to retain the data after returning.
-//
-// By convention, to approximate the behavior of Unmarshal itself,
-// ByteUnmarshaler implement UnmarshalByte([]byte("null")) as a no-op.
-type ByteUnmarshaler interface {
-	UnmarshalByte(data []byte) error
-}
-
-//Rows defines methods that scanner needs, which database/sql.Rows already implements
-const (
-	cTimeFormat = "2006-01-02 15:04:05"
-)
-
+// error def
 var (
-	//ErrTargetNotSettable means the second param of Bind is not settable
-	ErrTargetNotSettable = errors.New("[scanner]: target is not settable! a pointer is required")
-	//ErrSliceToString means only []uint8 can be transmuted into string
-	ErrSliceToString = errors.New("[scanner]: can't transmute a non-uint8 slice to string")
-	//ErrEmptyResult occurs when target of Scan isn't slice and the result of the query is empty
-	ErrEmptyResult = errors.New(`[scanner]: empty result`)
+	ErrNotSupportStructField = errors.New("struct not support")
+	ErrNotSupportMapValue    = errors.New("map not support")
 )
 
-//ScanErr will be returned if an underlying type couldn't be AssignableTo type of target field
-type ScanErr struct {
-	structName, fieldName string
-	from, to              reflect.Type
+type ScanError struct {
+	err        error
+	structName string
+	from, to   reflect.Type
 }
 
-func (s ScanErr) Error() string {
-	return fmt.Sprintf("[scanner]: %s.%s is %s which is not AssignableBy %s", s.structName, s.fieldName, s.to, s.from)
+func (s ScanError) Error() string {
+	return fmt.Sprintf("[scan]: %s.%s is %s which is not AssignableBy %s", s.structName, s.to.Name(), s.to, s.from)
 }
 
-func newScanErr(structName, fieldName string, from, to reflect.Type) ScanErr {
-	return ScanErr{structName, fieldName, from, to}
+func (s ScanError) Unwrap() error {
+	return s.err
 }
 
-// refer https://github.com/didi/gendry/tree/master/scanner
-func ScanMap(data []map[string]interface{}, target interface{}, tagName string) error {
-	if nil == target || reflect.ValueOf(target).IsNil() || reflect.TypeOf(target).Kind() != reflect.Ptr {
-		return ErrTargetNotSettable
-	}
-	if nil == data {
-		return nil
-	}
-	return bindSlice(data, target, tagName)
+func newScanError(err error, structName string, from, to reflect.Type) ScanError {
+	return ScanError{err, structName, from, to}
 }
 
-// refer https://github.com/didi/gendry/tree/master/scanner
-func ScanStruct(data map[string]interface{}, target interface{}, tagName string) error {
-	if nil == target || reflect.ValueOf(target).IsNil() || reflect.TypeOf(target).Kind() != reflect.Ptr {
-		return ErrTargetNotSettable
-	}
-	if nil == data {
-		return ErrEmptyResult
-	}
-	return bind(data, target, tagName)
-}
-
-//caller must guarantee to pass a &slice as the second param
-func bindSlice(arr []map[string]interface{}, target interface{}, tagName string) error {
-	targetObj := reflect.ValueOf(target)
-	if !targetObj.Elem().CanSet() {
-		return ErrTargetNotSettable
-	}
-	length := len(arr)
-	valueArrObj := reflect.MakeSlice(targetObj.Elem().Type(), 0, length)
-	typeObj := valueArrObj.Type().Elem()
-	var err error
-	for i := 0; i < length; i++ {
-		newObj := reflect.New(typeObj)
-		newObjInterface := newObj.Interface()
-		err = bind(arr[i], newObjInterface, tagName)
-		if nil != err {
-			return err
-		}
-		valueArrObj = reflect.Append(valueArrObj, newObj.Elem())
-	}
-	targetObj.Elem().Set(valueArrObj)
-	return nil
-}
-
-func bind(result map[string]interface{}, target interface{}, tagName string) (resp error) {
+// scanner
+func ScanStruct(data map[string]interface{}, target interface{}, tagName string) (err error) {
 	defer func() {
-		if r := recover(); nil != r {
-			resp = fmt.Errorf("error:[%v], stack:[%s]", r, string(debug.Stack()))
+		if r := recover(); r != nil {
+			err = fmt.Errorf("error:[%v], stack:[%s]", r, string(debug.Stack()))
 		}
 	}()
-	valueObj := reflect.ValueOf(target).Elem()
-	if !valueObj.CanSet() {
-		return ErrTargetNotSettable
-	}
-	typeObj := valueObj.Type()
-	if typeObj.Kind() == reflect.Ptr {
-		ptrType := typeObj.Elem()
-		newObj := reflect.New(ptrType)
-		newObjInterface := newObj.Interface()
-		err := bind(result, newObjInterface, tagName)
-		if nil == err {
-			valueObj.Set(newObj)
-		}
-		return err
-	}
-	typeObjName := typeObj.Name()
-
-	for i := 0; i < valueObj.NumField(); i++ {
-		fieldTypeI := typeObj.Field(i)
-		fieldName := fieldTypeI.Name
-
-		//for convenience
-		wrapErr := func(from, to reflect.Type) ScanErr {
-			return newScanErr(typeObjName, fieldName, from, to)
-		}
-
-		valuei := valueObj.Field(i)
-		if !valuei.CanSet() {
-			continue
-		}
-		tagName, ok := lookUpTagName(fieldTypeI, tagName)
-		if !ok || "" == tagName {
-			continue
-		}
-		mapValue, ok := result[tagName]
-		if !ok || mapValue == nil {
-			continue
-		}
-		// if one field is a pointer type, we must allocate memory for it first
-		// except for that the pointer type implements the interface ByteUnmarshaler
-		if fieldTypeI.Type.Kind() == reflect.Ptr && !fieldTypeI.Type.Implements(_byteUnmarshalerType) {
-			valuei.Set(reflect.New(fieldTypeI.Type.Elem()))
-			valuei = valuei.Elem()
-		}
-		err := convert(mapValue, valuei, wrapErr)
-		if nil != err {
-			return err
+	targetType := reflect.TypeOf(target).Elem()
+	targetValue := reflect.ValueOf(target).Elem()
+	targetName := targetType.Name()
+	for i := 0; i < targetType.NumField(); i++ {
+		if tagValue, ok := targetType.Field(i).Tag.Lookup(tagName); ok {
+			if idx := strings.IndexByte(tagValue, ','); idx != -1 {
+				if tagValue[:idx] == "pk" {
+					tagValue = tagValue[idx+1:]
+				} else {
+					tagValue = tagValue[:idx]
+				}
+			}
+			if dataVal, ok := data[tagValue]; ok {
+				targetValueField := targetValue.Field(i)
+				if scanner, ok := targetValueField.Addr().Interface().(sql.Scanner); ok {
+					err = scanner.Scan(dataVal)
+				} else {
+					err = scan(targetValueField, dataVal)
+				}
+				if err != nil {
+					err = newScanError(err, targetName, reflect.TypeOf(dataVal), targetValueField.Type())
+					return
+				}
+			}
 		}
 	}
-	return nil
+	return err
 }
 
-var _byteUnmarshalerType = reflect.TypeOf(new(ByteUnmarshaler)).Elem()
-
-type convertErrWrapper func(from, to reflect.Type) ScanErr
+func scan(targetValueField reflect.Value, dataVal interface{}) (err error) {
+	kind := reflect.TypeOf(dataVal).Kind()
+	switch {
+	case isIntSeriesType(kind):
+		err = integerConverter(targetValueField, dataVal, false)
+	case isUintSeriesType(kind):
+		err = integerConverter(targetValueField, dataVal, true)
+	case isFloatSeriesType(kind):
+		err = floatConverter(targetValueField, dataVal)
+	case kind == reflect.Slice:
+		err = sliceConverter(targetValueField, dataVal)
+	default:
+		if dataValTime, ok := dataVal.(time.Time); ok {
+			if targetValueField.Kind() == reflect.String {
+				targetValueField.SetString(dataValTime.Format("2006-01-02 15:04:05"))
+			} else if _, ok := targetValueField.Interface().(time.Time); ok {
+				targetValueField.Set(reflect.ValueOf(dataVal))
+			} else {
+				err = ErrNotSupportMapValue
+			}
+		} else {
+			err = ErrNotSupportMapValue
+		}
+	}
+	return
+}
 
 func isIntSeriesType(k reflect.Kind) bool {
 	return k >= reflect.Int && k <= reflect.Int64
@@ -170,149 +110,117 @@ func isFloatSeriesType(k reflect.Kind) bool {
 	return k == reflect.Float32 || k == reflect.Float64
 }
 
-func lookUpTagName(typeObj reflect.StructField, tagName string) (string, bool) {
-	name, ok := typeObj.Tag.Lookup(tagName)
-	if !ok {
-		return "", false
-	}
-	name = resolveTagName(name)
-	return name, ok
-}
-
-func convert(mapValue interface{}, valuei reflect.Value, wrapErr convertErrWrapper) error {
-	//vit: ValueI Type
-	vit := valuei.Type()
-	//mvt: MapValue Type
-	mvt := reflect.TypeOf(mapValue)
-	if nil == mvt {
-		return nil
-	}
-	//[]byte tp []byte && time.Time to time.Time
-	if mvt.AssignableTo(vit) {
-		valuei.Set(reflect.ValueOf(mapValue))
-		return nil
-	}
-
-	if scanner, ok := valuei.Addr().Interface().(sql.Scanner); ok {
-		return scanner.Scan(mapValue)
-	}
-
-	//according to go-mysql-driver/mysql, driver.Value type can only be:
-	//int64 or []byte(> maxInt64)
-	//float32/float64
-	//[]byte
-	//time.Time if parseTime=true or DATE type will be converted into []byte
-	switch mvt.Kind() {
-	case reflect.Int64:
-		if isIntSeriesType(vit.Kind()) {
-			valuei.SetInt(mapValue.(int64))
-		} else if isUintSeriesType(vit.Kind()) {
-			valuei.SetUint(uint64(mapValue.(int64)))
-		} else if vit.Kind() == reflect.Bool {
-			v := mapValue.(int64)
-			if v > 0 {
-				valuei.SetBool(true)
-			} else {
-				valuei.SetBool(false)
-			}
-		} else if vit.Kind() == reflect.String {
-			valuei.SetString(strconv.FormatInt(mapValue.(int64), 10))
-		} else {
-			return wrapErr(mvt, vit)
-		}
-	case reflect.Float32:
-		if isFloatSeriesType(vit.Kind()) {
-			valuei.SetFloat(float64(mapValue.(float32)))
-		} else {
-			return wrapErr(mvt, vit)
-		}
-	case reflect.Float64:
-		if isFloatSeriesType(vit.Kind()) {
-			valuei.SetFloat(mapValue.(float64))
-		} else {
-			return wrapErr(mvt, vit)
-		}
-	case reflect.Slice:
-		return handleConvertSlice(mapValue, mvt, vit, &valuei, wrapErr)
+func integerConverter(targetValueField reflect.Value, dataVal interface{}, unsigned bool) error {
+	var dataValConverted interface{}
+	switch v := dataVal.(type) {
+	case int:
+		dataValConverted = int64(v)
+	case int8:
+		dataValConverted = int64(v)
+	case int16:
+		dataValConverted = int64(v)
+	case int32:
+		dataValConverted = int64(v)
+	case uint:
+		dataValConverted = uint64(v)
+	case uint8:
+		dataValConverted = uint64(v)
+	case uint16:
+		dataValConverted = uint64(v)
+	case uint32:
+		dataValConverted = uint64(v)
+	case int64, uint64:
+		dataValConverted = v
 	default:
-		return wrapErr(mvt, vit)
+		return ErrNotSupportMapValue
 	}
-	return nil
-}
-
-func handleConvertSlice(mapValue interface{}, mvt, vit reflect.Type, valuei *reflect.Value, wrapErr convertErrWrapper) error {
-	mapValueSlice, ok := mapValue.([]byte)
-	if !ok {
-		return ErrSliceToString
-	}
-	mapValueStr := string(mapValueSlice)
-	vitKind := vit.Kind()
-	switch {
-	case vitKind == reflect.String:
-		valuei.SetString(mapValueStr)
-	case isIntSeriesType(vitKind):
-		intVal, err := strconv.ParseInt(mapValueStr, 10, 64)
-		if nil != err {
-			return wrapErr(mvt, vit)
-		}
-		valuei.SetInt(intVal)
-	case isUintSeriesType(vitKind):
-		uintVal, err := strconv.ParseUint(mapValueStr, 10, 64)
-		if nil != err {
-			return wrapErr(mvt, vit)
-		}
-		valuei.SetUint(uintVal)
-	case isFloatSeriesType(vitKind):
-		floatVal, err := strconv.ParseFloat(mapValueStr, 64)
-		if nil != err {
-			return wrapErr(mvt, vit)
-		}
-		valuei.SetFloat(floatVal)
-	case vitKind == reflect.Bool:
-		intVal, err := strconv.ParseInt(mapValueStr, 10, 64)
-		if nil != err {
-			return wrapErr(mvt, vit)
-		}
-		if intVal > 0 {
-			valuei.SetBool(true)
+	if isIntSeriesType(targetValueField.Kind()) {
+		if unsigned {
+			targetValueField.SetInt(int64(dataValConverted.(uint64)))
 		} else {
-			valuei.SetBool(false)
+			targetValueField.SetInt(dataValConverted.(int64))
 		}
-	default:
-		if _, ok := valuei.Interface().(ByteUnmarshaler); ok {
-			return byteUnmarshal(mapValueSlice, valuei, wrapErr)
+	} else if isUintSeriesType(targetValueField.Kind()) {
+		if unsigned {
+			targetValueField.SetUint(dataValConverted.(uint64))
+		} else {
+			targetValueField.SetUint(uint64(dataValConverted.(int64)))
 		}
-		return wrapErr(mvt, vit)
-	}
-	return nil
-}
-
-// valuei Here is the type of ByteUnmarshaler
-func byteUnmarshal(mapValueSlice []byte, valuei *reflect.Value, wrapErr convertErrWrapper) error {
-	var pt reflect.Value
-	initFlag := false
-	// init pointer
-	if valuei.IsNil() {
-		pt = reflect.New(valuei.Type().Elem())
-		initFlag = true
+	} else if targetValueField.Kind() == reflect.Bool {
+		if unsigned && dataValConverted.(uint64) > 0 || !unsigned && dataValConverted.(int64) > 0 {
+			targetValueField.SetBool(true)
+		} else {
+			targetValueField.SetBool(false)
+		}
+	} else if targetValueField.Kind() == reflect.String {
+		if unsigned {
+			targetValueField.SetString(strconv.FormatUint(dataValConverted.(uint64), 10))
+		} else {
+			targetValueField.SetString(strconv.FormatInt(dataValConverted.(int64), 10))
+		}
 	} else {
-		pt = *valuei
-	}
-	err := pt.Interface().(ByteUnmarshaler).UnmarshalByte(mapValueSlice)
-	if nil != err {
-		structName := pt.Elem().Type().Name()
-		return fmt.Errorf("[scanner]: %s.UnmarshalByte fail to unmarshal the bytes, err: %s", structName, err)
-	}
-	if initFlag {
-		valuei.Set(pt)
+		return ErrNotSupportStructField
 	}
 	return nil
 }
 
-func resolveTagName(tag string) string {
-	idx := strings.IndexByte(tag, ',')
-	if -1 == idx {
-		return tag
+func floatConverter(targetValueField reflect.Value, dataVal interface{}) error {
+	if targetValueField.Kind() != reflect.Float64 || targetValueField.Kind() != reflect.Float32 {
+		return ErrNotSupportStructField
 	}
-	return tag[:idx]
+	var dataValFloat64 float64
+	switch v := dataVal.(type) {
+	case float32:
+		dataValFloat64 = float64(v)
+	case float64:
+		dataValFloat64 = v
+	default:
+		return ErrNotSupportMapValue
+	}
+	targetValueField.SetFloat(dataValFloat64)
+	return nil
+}
+
+func sliceConverter(targetValueField reflect.Value, dataVal interface{}) error {
+	dataValSlice, ok := dataVal.([]byte)
+	if !ok {
+		return ErrNotSupportMapValue
+	}
+	dataValStr := BytesToString(dataValSlice)
+	kind := targetValueField.Kind()
+	switch {
+	case kind == reflect.String:
+		targetValueField.SetString(dataValStr)
+	case isIntSeriesType(kind):
+		dataValInt, err := strconv.ParseInt(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetInt(dataValInt)
+	case isUintSeriesType(kind):
+		dataValUint, err := strconv.ParseUint(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetUint(dataValUint)
+	case isFloatSeriesType(kind):
+		dataValFloat, err := strconv.ParseFloat(dataValStr, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetFloat(dataValFloat)
+	case kind == reflect.Bool:
+		dataValBool, err := strconv.ParseInt(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		if dataValBool > 0 {
+			targetValueField.SetBool(true)
+		} else {
+			targetValueField.SetBool(false)
+		}
+	default:
+		return ErrNotSupportStructField
+	}
+	return nil
 }
