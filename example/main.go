@@ -10,13 +10,20 @@ import (
 )
 
 func setupDb() {
-	db.Setup(db.Conf{
-		Name:     "db",
-		User:     "root",
-		Password: "123456",
-		Host:     "127.0.0.1",
-		Port:     3306,
-	})
+	db.Setup(
+		db.Conf{
+			Name:     "db",
+			User:     "root",
+			Password: "123456",
+			Host:     "127.0.0.1",
+			Port:     3306,
+		},
+		db.Loc(time.Local),
+		db.ParseTime(true),
+		db.AllowCleartextPasswords(true),
+		db.InterpolateParams(true),
+		db.Param("charset", "utf8"),
+	)
 
 	fmt.Println("建立连接成功")
 }
@@ -29,6 +36,7 @@ func main() {
 	//defer cancel()
 	ctx := context.TODO()
 	sess := sorm.NewSession(ctx)
+	defer sess.Close()
 	testD := sess.GetDao(new(model.Test))
 	fmt.Println(testD.Insert(map[string]interface{}{
 		"name": "test2",

@@ -165,16 +165,16 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, erro
 	return d.createOne(where, indexValues, false)
 }
 
-func (d *Dao) SelectById(id interface{}, opts ...option) (Modeller, error) {
-	options := newOptions()
+func (d *Dao) SelectById(id interface{}, opts ...Option) (Modeller, error) {
+	option := newOption()
 	for _, o := range opts {
-		o(&options)
+		o(&option)
 	}
-	model, err := d.Select(options.forUpdate, id)
+	model, err := d.Select(option.forUpdate, id)
 	if err != nil {
 		return nil, err
 	}
-	if !options.forUpdate && (options.forceLoad || options.load) {
+	if !option.forUpdate && (option.forceLoad || option.load) {
 		return model.Load(opts...)
 	}
 	return model, nil
@@ -207,7 +207,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (M
 	return d.createOne(data, indexValues, false)
 }
 
-func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) (Modeller, error) {
+func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (Modeller, error) {
 	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
@@ -215,16 +215,16 @@ func (d *Dao) SelectOne(where map[string]interface{}, opts ...option) (Modeller,
 	return d.SelectOneWithSql(cond, params, opts...)
 }
 
-func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...option) (Modeller, error) {
+func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Option) (Modeller, error) {
 	var (
-		row     *sql.Rows
-		err     error
-		options = newOptions()
+		row    *sql.Rows
+		err    error
+		option = newOption()
 	)
 	for _, o := range opts {
-		o(&options)
+		o(&option)
 	}
-	if options.forceMaster {
+	if option.forceMaster {
 		row, err = d.Session().Query(query, params...)
 	} else {
 		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
@@ -241,7 +241,7 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...optio
 	return ms[0], nil
 }
 
-func (d *Dao) SelectMulti(where map[string]interface{}, opts ...option) ([]Modeller, error) {
+func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]Modeller, error) {
 	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
@@ -249,16 +249,16 @@ func (d *Dao) SelectMulti(where map[string]interface{}, opts ...option) ([]Model
 	return d.SelectMultiWithSql(cond, params, opts...)
 }
 
-func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...option) ([]Modeller, error) {
+func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]Modeller, error) {
 	var (
-		rows    *sql.Rows
-		err     error
-		options = newOptions()
+		rows   *sql.Rows
+		err    error
+		option = newOption()
 	)
 	for _, o := range opts {
-		o(&options)
+		o(&option)
 	}
-	if options.forceMaster {
+	if option.forceMaster {
 		rows, err = d.Session().Query(query, params...)
 	} else {
 		rows, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
