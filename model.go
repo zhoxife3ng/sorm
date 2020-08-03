@@ -47,7 +47,11 @@ func (bm *BaseModel) Load(opts ...option) (Modeller, error) {
 	if options.forUpdate || bm.Loaded() && !options.forceLoad {
 		return bm.dao.Select(options.forUpdate, bm.indexValues...)
 	}
-	return bm.dao.SelectOne(bm.dao.buildWhere(bm.indexValues...), opts...)
+	where, err := bm.dao.buildWhere(bm.indexValues...)
+	if err != nil {
+		return nil, err
+	}
+	return bm.dao.SelectOne(where, opts...)
 }
 
 func (bm *BaseModel) Update(set map[string]interface{}) (int64, error) {

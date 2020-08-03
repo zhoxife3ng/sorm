@@ -1,12 +1,11 @@
 package model
 
 import (
-	"github.com/x554462/go-exception"
 	"github.com/x554462/sorm"
 	"github.com/x554462/sorm/type"
 )
 
-var TestNotFoundError = exception.New("Test记录未找到", sorm.ModelNotFoundError)
+var TestNotFoundError = sorm.NewError(sorm.ModelNotFoundError, "Test记录未找到")
 
 type Test struct {
 	sorm.BaseModel

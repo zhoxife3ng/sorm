@@ -4,30 +4,31 @@ import (
 	"container/list"
 	"database/sql/driver"
 	"fmt"
-	"github.com/x554462/go-exception"
 	"strings"
 	"sync"
 )
 
-func (d *Dao) queryCache(indexes ...interface{}) Modeller {
-	key := d.buildKey(indexes...)
-	if m, err := d.Session().daoModelCache.Get(key); err == nil {
-		return m
+func (d *Dao) queryCache(indexes ...interface{}) (Modeller, error) {
+	key, err := d.buildKey(indexes...)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return d.Session().daoModelCache.Get(key)
 }
 
 func (d *Dao) removeCache(indexes ...interface{}) {
-	key := d.buildKey(indexes...)
-	d.Session().daoModelCache.Del(key)
+	if key, err := d.buildKey(indexes...); err == nil {
+		d.Session().daoModelCache.Del(key)
+	}
 }
 
 func (d *Dao) saveCache(model Modeller) {
-	key := d.buildKey(model.IndexValues()...)
-	d.Session().daoModelCache.Put(key, model)
+	if key, err := d.buildKey(model.IndexValues()...); err == nil {
+		d.Session().daoModelCache.Put(key, model)
+	}
 }
 
-func (d *Dao) buildKey(indexes ...interface{}) string {
+func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 	var err error
 	buildStr := strings.Builder{}
 	buildStr.WriteString(d.tableName)
@@ -38,7 +39,7 @@ func (d *Dao) buildKey(indexes ...interface{}) string {
 			buildStr.WriteString(fmt.Sprintf("`%d", m))
 		case string:
 			if m == "" {
-				err = exception.New("the index key can not be empty string", ModelRuntimeError)
+				err = NewError(ModelRuntimeError, "the index key can not be empty string")
 			}
 			buildStr.WriteString("`")
 			buildStr.WriteString(m)
@@ -50,11 +51,13 @@ func (d *Dao) buildKey(indexes ...interface{}) string {
 				goto assert
 			}
 		default:
-			err = exception.New("not support index key", ModelRuntimeError)
+			err = NewError(ModelRuntimeError, "not support index key")
 		}
-		exception.CheckError(err)
+		if err != nil {
+			return "", err
+		}
 	}
-	return buildStr.String()
+	return buildStr.String(), nil
 }
 
 // 使用lru算法缓存model
