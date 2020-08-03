@@ -10,8 +10,8 @@ import (
 const driverName = "mysql"
 
 var (
-	dbInstance      *sql.DB
-	dbInstanceSlave *sql.DB
+	dbInstance        *sql.DB
+	dbInstanceReplica *sql.DB
 )
 
 type Conf struct {
@@ -43,7 +43,6 @@ func buildDSN(conf Conf, opts []Option) string {
 func Setup(conf Conf, opts ...Option) {
 	if dbInstance == nil {
 		var err error
-		fmt.Println(buildDSN(conf, opts))
 		dbInstance, err = sql.Open(driverName, buildDSN(conf, opts))
 		if err == nil {
 			if err = dbInstance.Ping(); err == nil {
@@ -54,16 +53,16 @@ func Setup(conf Conf, opts ...Option) {
 	}
 }
 
-func SetupSlave(conf Conf, opts ...Option) {
-	if dbInstanceSlave == nil {
+func SetupReplica(conf Conf, opts ...Option) {
+	if dbInstanceReplica == nil {
 		var err error
-		dbInstanceSlave, err = sql.Open(driverName, buildDSN(conf, opts))
+		dbInstanceReplica, err = sql.Open(driverName, buildDSN(conf, opts))
 		if err == nil {
-			if err = dbInstance.Ping(); err == nil {
+			if err = dbInstanceReplica.Ping(); err == nil {
 				return
 			}
 		}
-		log.Fatalln("dbHelper.DbInstanceSlave,", err)
+		log.Fatalln("dbHelper.DbInstanceReplica,", err)
 	}
 }
 
@@ -74,9 +73,9 @@ func GetInstance() *sql.DB {
 	return dbInstance
 }
 
-func GetSlaveInstance() *sql.DB {
-	if dbInstanceSlave == nil {
+func GetReplicaInstance() *sql.DB {
+	if dbInstanceReplica == nil {
 		return GetInstance()
 	}
-	return dbInstanceSlave
+	return dbInstanceReplica
 }

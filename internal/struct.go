@@ -15,6 +15,7 @@ import (
 var (
 	ErrNotSupportStructField = errors.New("struct not support")
 	ErrNotSupportMapValue    = errors.New("map not support")
+	ErrTargetNotSettable     = errors.New("target not settable")
 )
 
 type ScanError struct {
@@ -36,6 +37,30 @@ func newScanError(err error, structName string, from, to reflect.Type) ScanError
 }
 
 // scanner
+func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("error:[%v], stack:[%s]", r, string(debug.Stack()))
+		}
+	}()
+	targetValue := reflect.ValueOf(target)
+	if !targetValue.Elem().CanSet() {
+		return ErrTargetNotSettable
+	}
+	length := len(data)
+	targetValueSlice := reflect.MakeSlice(targetValue.Elem().Type(), 0, length)
+	targetValueSliceType := targetValueSlice.Type().Elem()
+	for i := 0; i < length; i++ {
+		targetObj := reflect.New(targetValueSliceType)
+		if err = ScanStruct(data[i], targetObj.Interface(), tagName); err != nil {
+			return err
+		}
+		targetValueSlice = reflect.Append(targetValueSlice, targetObj.Elem())
+	}
+	targetValue.Elem().Set(targetValueSlice)
+	return nil
+}
+
 func ScanStruct(data map[string]interface{}, target interface{}, tagName string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -56,10 +81,14 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 			}
 			if dataVal, ok := data[tagValue]; ok {
 				targetValueField := targetValue.Field(i)
-				if scanner, ok := targetValueField.Addr().Interface().(sql.Scanner); ok {
-					err = scanner.Scan(dataVal)
+				if targetValueField.CanSet() {
+					if scanner, ok := targetValueField.Addr().Interface().(sql.Scanner); ok {
+						err = scanner.Scan(dataVal)
+					} else {
+						err = scan(targetValueField, dataVal)
+					}
 				} else {
-					err = scan(targetValueField, dataVal)
+					err = ErrTargetNotSettable
 				}
 				if err != nil {
 					err = newScanError(err, targetName, reflect.TypeOf(dataVal), targetValueField.Type())
