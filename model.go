@@ -13,7 +13,7 @@ type Modeller interface {
 	IndexValues() []interface{}
 	GetDao() *Dao
 	Loaded() bool
-	Load(opts ...option) (Modeller, error)
+	Load(opts ...Option) (Modeller, error)
 	Update(set map[string]interface{}) (int64, error)
 	Remove() error
 	GetId() interface{}
@@ -39,13 +39,13 @@ func (bm *BaseModel) Loaded() bool {
 	return bm.loaded
 }
 
-func (bm *BaseModel) Load(opts ...option) (Modeller, error) {
-	options := newOptions()
+func (bm *BaseModel) Load(opts ...Option) (Modeller, error) {
+	option := newOption()
 	for _, o := range opts {
-		o(&options)
+		o(&option)
 	}
-	if options.forUpdate || bm.Loaded() && !options.forceLoad {
-		return bm.dao.Select(options.forUpdate, bm.indexValues...)
+	if option.forUpdate || bm.Loaded() && !option.forceLoad {
+		return bm.dao.Select(option.forUpdate, bm.indexValues...)
 	}
 	where, err := bm.dao.buildWhere(bm.indexValues...)
 	if err != nil {

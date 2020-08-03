@@ -3,9 +3,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"log"
 )
+
+const driverName = "mysql"
 
 var (
 	dbInstance      *sql.DB
@@ -20,15 +22,29 @@ type Conf struct {
 	Port     int
 }
 
-func Setup(conf Conf) {
+func buildDSN(conf Conf, opts []Option) string {
+	mysqlConf := mysql.NewConfig()
+	mysqlConf.DBName = conf.Name
+	mysqlConf.User = conf.User
+	mysqlConf.Passwd = conf.Password
+	if conf.Port > 0 {
+		mysqlConf.Addr = fmt.Sprintf("%s:%d", conf.Host, conf.Port)
+		mysqlConf.Net = "tcp"
+	} else {
+		mysqlConf.Addr = conf.Host
+		mysqlConf.Net = "unix"
+	}
+	for _, opt := range opts {
+		opt(mysqlConf)
+	}
+	return mysqlConf.FormatDSN()
+}
+
+func Setup(conf Conf, opts ...Option) {
 	if dbInstance == nil {
 		var err error
-		dbInstance, err = sql.Open("mysql",
-			fmt.Sprintf(
-				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true&loc=Local&parseTime=true",
-				conf.User, conf.Password, conf.Host, conf.Port, conf.Name,
-			),
-		)
+		fmt.Println(buildDSN(conf, opts))
+		dbInstance, err = sql.Open(driverName, buildDSN(conf, opts))
 		if err == nil {
 			if err = dbInstance.Ping(); err == nil {
 				return
@@ -38,15 +54,10 @@ func Setup(conf Conf) {
 	}
 }
 
-func SetupSlave(conf Conf) {
+func SetupSlave(conf Conf, opts ...Option) {
 	if dbInstanceSlave == nil {
 		var err error
-		dbInstanceSlave, err = sql.Open("mysql",
-			fmt.Sprintf(
-				"%s:%s@tcp(%s:%d)/%s?charset=utf8&allowCleartextPasswords=true&interpolateParams=true",
-				conf.User, conf.Password, conf.Host, conf.Port, conf.Name,
-			),
-		)
+		dbInstanceSlave, err = sql.Open(driverName, buildDSN(conf, opts))
 		if err == nil {
 			if err = dbInstance.Ping(); err == nil {
 				return
