@@ -227,7 +227,7 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 	if option.forceMaster {
 		row, err = d.Session().Query(query, params...)
 	} else {
-		row, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
+		row, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return nil, err
@@ -261,7 +261,7 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Opt
 	if option.forceMaster {
 		rows, err = d.Session().Query(query, params...)
 	} else {
-		rows, err = db.GetSlaveInstance().QueryContext(d.Session().ctx, query, params...)
+		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return nil, err
@@ -334,4 +334,24 @@ func (d *Dao) ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, err
 		data = append(data, mp)
 	}
 	return data, nil
+}
+
+func (d *Dao) ResolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
+	data, err := d.ResolveDataFromRows(rows)
+	if err != nil {
+		return err
+	}
+	switch reflect.TypeOf(target).Elem().Kind() {
+	case reflect.Slice:
+		if len(data) == 0 {
+			return nil
+		}
+		err = internal.ScanStructSlice(data, target, tagName)
+	default:
+		if len(data) == 0 {
+			return d.notFoundError
+		}
+		err = internal.ScanStruct(data[0], target, tagName)
+	}
+	return err
 }

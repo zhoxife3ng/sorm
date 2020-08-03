@@ -105,6 +105,10 @@ func (s *Session) Close() {
 	sessionPool.Put(s)
 }
 
+func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, error) {
+	return db.GetReplicaInstance().QueryContext(s.ctx, query, args...)
+}
+
 func (s *Session) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	if s.tx != nil {
 		return s.tx.QueryContext(s.ctx, query, args...)
