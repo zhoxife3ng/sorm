@@ -36,6 +36,10 @@ func newScanError(err error, structName string, from, to reflect.Type) ScanError
 	return ScanError{err, structName, from, to}
 }
 
+type Typer interface {
+	BindModel(target interface{})
+}
+
 // scanner
 func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName string) (err error) {
 	defer func() {
@@ -79,11 +83,15 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 					tagValue = tagValue[:idx]
 				}
 			}
+			targetValueField := targetValue.Field(i)
+			targetValueFieldIfe := targetValueField.Addr().Interface()
 			if dataVal, ok := data[tagValue]; ok {
-				targetValueField := targetValue.Field(i)
 				if targetValueField.CanSet() {
-					if scanner, ok := targetValueField.Addr().Interface().(sql.Scanner); ok {
+					if scanner, ok := targetValueFieldIfe.(sql.Scanner); ok {
 						err = scanner.Scan(dataVal)
+						if typer, ok := targetValueFieldIfe.(Typer); ok {
+							typer.BindModel(target)
+						}
 					} else {
 						err = scan(targetValueField, dataVal)
 					}
@@ -94,6 +102,8 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 					err = newScanError(err, targetName, reflect.TypeOf(dataVal), targetValueField.Type())
 					return
 				}
+			} else if typer, ok := targetValueFieldIfe.(Typer); ok {
+				typer.BindModel(target)
 			}
 		}
 	}
