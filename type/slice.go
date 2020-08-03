@@ -2,14 +2,19 @@ package _type
 
 import (
 	"database/sql"
+	"github.com/x554462/sorm"
 	"github.com/x554462/sorm/internal"
 )
 
 type Slice struct {
-	t sql.NullString
+	t     sql.NullString
+	model sorm.Modeller
 }
 
 func (s *Slice) Value() []interface{} {
+	if s.model != nil && !s.model.Loaded() {
+		s.model.Load()
+	}
 	if s.IsZero() {
 		return nil
 	}
@@ -30,4 +35,10 @@ func (s *Slice) Set(sl map[string]interface{}) {
 
 func (s *Slice) Scan(value interface{}) error {
 	return s.t.Scan(value)
+}
+
+func (s *Slice) BindModel(target interface{}) {
+	if model, ok := target.(sorm.Modeller); ok {
+		s.model = model
+	}
 }

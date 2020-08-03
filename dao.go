@@ -62,7 +62,7 @@ func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, 
 		err   error
 	)
 	if indexValues, ok = d.getIndexValuesFromData(data); ok {
-		if model, err = d.queryCache(indexValues...); err == nil || model != nil && !loaded {
+		if model, err = d.queryCache(indexValues...); err == nil && model != nil && !loaded {
 			return model, nil
 		}
 	}

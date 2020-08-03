@@ -1,12 +1,19 @@
 package _type
 
-import "database/sql"
+import (
+	"database/sql"
+	"github.com/x554462/sorm"
+)
 
 type String struct {
-	t sql.NullString
+	t     sql.NullString
+	model sorm.Modeller
 }
 
 func (s *String) Value() string {
+	if s.model != nil && !s.model.Loaded() {
+		s.model.Load()
+	}
 	return s.t.String
 }
 
@@ -21,4 +28,10 @@ func (s *String) Set(str string) {
 
 func (s *String) Scan(value interface{}) error {
 	return s.t.Scan(value)
+}
+
+func (s *String) BindModel(target interface{}) {
+	if model, ok := target.(sorm.Modeller); ok {
+		s.model = model
+	}
 }

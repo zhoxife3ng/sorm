@@ -2,14 +2,19 @@ package _type
 
 import (
 	"database/sql"
+	"github.com/x554462/sorm"
 	"github.com/x554462/sorm/internal"
 )
 
 type Map struct {
-	t sql.NullString
+	t     sql.NullString
+	model sorm.Modeller
 }
 
 func (m *Map) Value() map[string]interface{} {
+	if m.model != nil && !m.model.Loaded() {
+		m.model.Load()
+	}
 	if m.IsZero() {
 		return nil
 	}
@@ -30,4 +35,10 @@ func (m *Map) Set(mp map[string]interface{}) {
 
 func (m *Map) Scan(value interface{}) error {
 	return m.t.Scan(value)
+}
+
+func (m *Map) BindModel(target interface{}) {
+	if model, ok := target.(sorm.Modeller); ok {
+		m.model = model
+	}
 }
