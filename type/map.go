@@ -11,16 +11,26 @@ type Map struct {
 	model sorm.Modeller
 }
 
-func (m *Map) Value() map[string]interface{} {
+func (m *Map) MustValue() map[string]interface{} {
+	v, err := m.Value()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (m *Map) Value() (map[string]interface{}, error) {
 	if m.model != nil && !m.model.Loaded() {
-		m.model.Load()
+		if _, err := m.model.Load(); err != nil {
+			return nil, err
+		}
 	}
 	if m.IsZero() {
-		return nil
+		return nil, nil
 	}
 	var data map[string]interface{}
-	internal.JsonUnmarshal(internal.StringToBytes(m.t.String), &data)
-	return data
+	err := internal.JsonUnmarshal(internal.StringToBytes(m.t.String), &data)
+	return data, err
 }
 
 func (m *Map) IsZero() bool {

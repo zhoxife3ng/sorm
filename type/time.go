@@ -11,11 +11,21 @@ type Time struct {
 	model sorm.Modeller
 }
 
-func (t *Time) Value() time.Time {
-	if t.model != nil && !t.model.Loaded() {
-		t.model.Load()
+func (t *Time) MustValue() time.Time {
+	v, err := t.Value()
+	if err != nil {
+		panic(err)
 	}
-	return t.t.Time
+	return v
+}
+
+func (t *Time) Value() (time.Time, error) {
+	if t.model != nil && !t.model.Loaded() {
+		if _, err := t.model.Load(); err != nil {
+			return time.Time{}, err
+		}
+	}
+	return t.t.Time, nil
 }
 
 func (t *Time) IsZero() bool {

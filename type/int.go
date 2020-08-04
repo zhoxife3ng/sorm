@@ -10,11 +10,21 @@ type Int struct {
 	model sorm.Modeller
 }
 
-func (i *Int) Value() int {
-	if i.model != nil && !i.model.Loaded() {
-		i.model.Load()
+func (i *Int) MustValue() int {
+	v, err := i.Value()
+	if err != nil {
+		panic(err)
 	}
-	return int(i.t.Int64)
+	return v
+}
+
+func (i *Int) Value() (int, error) {
+	if i.model != nil && !i.model.Loaded() {
+		if _, err := i.model.Load(); err != nil {
+			return 0, err
+		}
+	}
+	return int(i.t.Int64), nil
 }
 
 func (i *Int) IsZero() bool {

@@ -10,11 +10,21 @@ type String struct {
 	model sorm.Modeller
 }
 
-func (s *String) Value() string {
-	if s.model != nil && !s.model.Loaded() {
-		s.model.Load()
+func (s *String) MustValue() string {
+	v, err := s.Value()
+	if err != nil {
+		panic(err)
 	}
-	return s.t.String
+	return v
+}
+
+func (s *String) Value() (string, error) {
+	if s.model != nil && !s.model.Loaded() {
+		if _, err := s.model.Load(); err != nil {
+			return "", err
+		}
+	}
+	return s.t.String, nil
 }
 
 func (s *String) IsZero() bool {

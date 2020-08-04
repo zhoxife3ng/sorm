@@ -11,16 +11,26 @@ type Slice struct {
 	model sorm.Modeller
 }
 
-func (s *Slice) Value() []interface{} {
+func (s *Slice) MustValue() []interface{} {
+	v, err := s.Value()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (s *Slice) Value() ([]interface{}, error) {
 	if s.model != nil && !s.model.Loaded() {
-		s.model.Load()
+		if _, err := s.model.Load(); err != nil {
+			return nil, err
+		}
 	}
 	if s.IsZero() {
-		return nil
+		return nil, nil
 	}
 	var data []interface{}
-	internal.JsonUnmarshal(internal.StringToBytes(s.t.String), &data)
-	return data
+	err := internal.JsonUnmarshal(internal.StringToBytes(s.t.String), &data)
+	return data, err
 }
 
 func (s *Slice) IsZero() bool {

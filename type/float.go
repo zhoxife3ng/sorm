@@ -10,11 +10,21 @@ type Float struct {
 	model sorm.Modeller
 }
 
-func (f *Float) Value() float64 {
-	if f.model != nil && !f.model.Loaded() {
-		f.model.Load()
+func (f *Float) MustValue() float64 {
+	v, err := f.Value()
+	if err != nil {
+		panic(err)
 	}
-	return f.t.Float64
+	return v
+}
+
+func (f *Float) Value() (float64, error) {
+	if f.model != nil && !f.model.Loaded() {
+		if _, err := f.model.Load(); err != nil {
+			return 0, err
+		}
+	}
+	return f.t.Float64, nil
 }
 
 func (f *Float) IsZero() bool {
