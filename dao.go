@@ -310,7 +310,7 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error) {
 	return data, nil
 }
 
-func (d *Dao) ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, error) {
+func ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
@@ -336,8 +336,8 @@ func (d *Dao) ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, err
 	return data, nil
 }
 
-func (d *Dao) ResolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
-	data, err := d.ResolveDataFromRows(rows)
+func ResolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
+	data, err := ResolveDataFromRows(rows)
 	if err != nil {
 		return err
 	}
@@ -349,7 +349,7 @@ func (d *Dao) ResolveFromRows(rows *sql.Rows, target interface{}, tagName string
 		err = internal.ScanStructSlice(data, target, tagName)
 	default:
 		if len(data) == 0 {
-			return d.notFoundError
+			return ModelNotFoundError
 		}
 		err = internal.ScanStruct(data[0], target, tagName)
 	}
