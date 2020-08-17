@@ -9,13 +9,17 @@ type option struct {
 
 type Option func(o *option)
 
-func newOption() option {
-	return option{
+func fetchOption(opts ...Option) option {
+	opt := option{
 		forceMaster: false,
 		forUpdate:   false,
 		forceLoad:   false,
 		load:        false,
 	}
+	for _, o := range opts {
+		o(&opt)
+	}
+	return opt
 }
 
 func ForceMaster() Option {

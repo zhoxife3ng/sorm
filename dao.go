@@ -26,7 +26,7 @@ type DaoInterface interface {
 	GetCount(column string, where map[string]interface{}, opts ...Option) (int, error)
 	GetSum(column string, where map[string]interface{}, opts ...Option) (int, error)
 	ExecWithSql(query string, params []interface{}) (sql.Result, error)
-	QueryWithSql(query string, params []interface{}) (*sql.Rows, error)
+	QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error)
 	ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error)
 }
 
@@ -222,10 +222,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, erro
 }
 
 func (d *Dao) SelectById(id interface{}, opts ...Option) (Modeller, error) {
-	option := newOption()
-	for _, o := range opts {
-		o(&option)
-	}
+	option := fetchOption(opts...)
 	model, err := d.Select(option.forUpdate, id)
 	if err != nil {
 		return nil, err
@@ -248,11 +245,8 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 	var (
 		row    *sql.Rows
 		err    error
-		option = newOption()
+		option = fetchOption(opts...)
 	)
-	for _, o := range opts {
-		o(&option)
-	}
 	if option.forceMaster {
 		row, err = d.Session().Query(query, params...)
 	} else {
@@ -282,11 +276,8 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Opt
 	var (
 		rows   *sql.Rows
 		err    error
-		option = newOption()
+		option = fetchOption(opts...)
 	)
-	for _, o := range opts {
-		o(&option)
-	}
 	if option.forceMaster {
 		rows, err = d.Session().Query(query, params...)
 	} else {
@@ -307,11 +298,8 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 	}
 	var (
 		rows   *sql.Rows
-		option = newOption()
+		option = fetchOption(opts...)
 	)
-	for _, o := range opts {
-		o(&option)
-	}
 	if option.forceMaster {
 		rows, err = d.Session().Query(query, params...)
 	} else {
@@ -339,11 +327,8 @@ func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option
 	}
 	var (
 		rows   *sql.Rows
-		option = newOption()
+		option = fetchOption(opts...)
 	)
-	for _, o := range opts {
-		o(&option)
-	}
 	if option.forceMaster {
 		rows, err = d.Session().Query(query, params...)
 	} else {
@@ -366,8 +351,13 @@ func (d *Dao) ExecWithSql(query string, params []interface{}) (sql.Result, error
 	return d.Session().Exec(query, params...)
 }
 
-func (d *Dao) QueryWithSql(query string, params []interface{}) (*sql.Rows, error) {
-	return d.Session().Query(query, params...)
+func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error) {
+	option := fetchOption(opts...)
+	if option.forceMaster {
+		return d.Session().Query(query, params...)
+	} else {
+		return db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+	}
 }
 
 func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error) {

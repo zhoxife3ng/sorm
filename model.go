@@ -45,10 +45,7 @@ func (bm *BaseModel) Loaded() bool {
 }
 
 func (bm *BaseModel) Load(opts ...Option) (Modeller, error) {
-	option := newOption()
-	for _, o := range opts {
-		o(&option)
-	}
+	option := fetchOption(opts...)
 	if option.forUpdate || bm.Loaded() && !option.forceLoad {
 		return bm.dao.Select(option.forUpdate, bm.indexValues...)
 	}
