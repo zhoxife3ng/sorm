@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"bytes"
 	"strings"
 )
 
@@ -19,42 +20,62 @@ func (s *baseSelect) processSelect() (string, error) {
 		str.WriteString(selectQuantifier)
 		str.WriteString(" ")
 	}
+
+	var columnStr = bytes.Buffer{}
 	_, aliasTableName := resolveIdentifier(selectTable)
+	// column
 	for i, c := range selectColumns {
 		if i > 0 {
-			str.WriteString(", ")
+			columnStr.WriteString(", ")
 		}
 		if !strings.Contains(c, ".") {
-			str.WriteString(quoteTable(aliasTableName))
-			str.WriteString(".")
-			str.WriteString(quoteIdentifier(c))
+			columnStr.WriteString(QuoteTable(aliasTableName))
+			columnStr.WriteString(".")
+			columnStr.WriteString(QuoteIdentifier(c))
 		} else {
-			str.WriteString(quoteIdentifier(c))
+			columnStr.WriteString(QuoteIdentifier(c))
 		}
 	}
-	if len(selectColumns) == 0 {
-		str.WriteString(quoteTable(aliasTableName))
-		str.WriteString(".*")
-	}
+
+	// join column
 	if selectJoin != nil {
 		for _, joinAttr := range selectJoin.GetJoins() {
 			_, aliasTableName := resolveIdentifier(joinAttr.name)
 			for _, c := range joinAttr.columns {
-				str.WriteString(", ")
+				if columnStr.Len() > 0 {
+					columnStr.WriteString(", ")
+				}
 				if !strings.Contains(c, ".") {
-					str.WriteString(quoteTable(aliasTableName))
-					str.WriteString(".")
-					str.WriteString(quoteIdentifier(c))
+					columnStr.WriteString(QuoteTable(aliasTableName))
+					columnStr.WriteString(".")
+					columnStr.WriteString(QuoteIdentifier(c))
 				} else {
-					str.WriteString(quoteIdentifier(c))
+					columnStr.WriteString(QuoteIdentifier(c))
 				}
 			}
 		}
-
 	}
+
+	// func column
+	for fColumns, alias := range s.fColumns {
+		if columnStr.Len() > 0 {
+			columnStr.WriteString(", ")
+		}
+		columnStr.WriteString(fColumns)
+		columnStr.WriteString(" AS ")
+		columnStr.WriteString(QuoteIdentifier(alias))
+	}
+
+	if columnStr.Len() == 0 {
+		columnStr.WriteString(QuoteTable(aliasTableName))
+		columnStr.WriteString(".*")
+	}
+
+	str.Write(columnStr.Bytes())
+
 	if selectTable != "" {
 		str.WriteString(" FROM ")
-		str.WriteString(quoteTable(selectTable))
+		str.WriteString(QuoteTable(selectTable))
 	}
 	return str.String(), nil
 }
@@ -66,7 +87,7 @@ func (s *baseSelect) processForceIndex() (string, error) {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("FORCE INDEX (")
-	str.WriteString(quoteIdentifier(s.forceIndex))
+	str.WriteString(QuoteIdentifier(s.forceIndex))
 	str.WriteString(")")
 	return str.String(), nil
 }
@@ -84,7 +105,7 @@ func (s *baseSelect) processJoins() (string, error) {
 		}
 		str.WriteString(joinAttr.typo)
 		str.WriteString(" JOIN ")
-		str.WriteString(quoteTable(joinAttr.name))
+		str.WriteString(QuoteTable(joinAttr.name))
 		str.WriteString(" ON ")
 		str.WriteString(joinAttr.on)
 	}
@@ -129,7 +150,7 @@ func (s *baseSelect) processGroup() (string, error) {
 		if i > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(quoteIdentifier(group))
+		str.WriteString(QuoteIdentifier(group))
 	}
 	return str.String(), nil
 }
@@ -174,7 +195,7 @@ func (s *baseSelect) processOrder() (string, error) {
 		}
 		o := strings.Split(strings.Trim(order, " "), " ")
 		if len(o) > 0 && len(o) < 3 {
-			str.WriteString(quoteIdentifier(o[0]))
+			str.WriteString(QuoteIdentifier(o[0]))
 			str.WriteString(" ")
 			var sort = "ASC"
 			if len(o) == 2 && o[1] != "" {
@@ -216,7 +237,7 @@ func (u *baseUpdate) processUpdate() (string, error) {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("UPDATE ")
-	str.WriteString(quoteIdentifier(u.table))
+	str.WriteString(QuoteTable(u.table))
 	return str.String(), nil
 }
 
@@ -233,7 +254,7 @@ func (u *baseUpdate) processJoins() (string, error) {
 		}
 		str.WriteString(joinAttr.typo)
 		str.WriteString(" JOIN ")
-		str.WriteString(quoteTable(joinAttr.name))
+		str.WriteString(QuoteTable(joinAttr.name))
 		str.WriteString(" ON ")
 		str.WriteString(joinAttr.on)
 	}
@@ -254,7 +275,7 @@ func (u *baseUpdate) processSet() (string, error) {
 		if strings.Contains(v, PlaceHolder) {
 			str.WriteString(v)
 		} else {
-			str.WriteString(quoteIdentifier(v))
+			str.WriteString(QuoteIdentifier(v))
 			str.WriteString("=?")
 		}
 	}
@@ -291,13 +312,13 @@ func (i *baseInsert) processInsert() (string, error) {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("INSERT INTO ")
-	str.WriteString(quoteTable(i.table))
+	str.WriteString(QuoteTable(i.table))
 	str.WriteString("(")
 	for c, v := range columns {
 		if c > 0 {
 			str.WriteString(", ")
 		}
-		str.WriteString(quoteIdentifier(v))
+		str.WriteString(QuoteIdentifier(v))
 	}
 	str.WriteString(") VALUES")
 	for j := 0; j < len(i.params); j += 1 {
@@ -315,7 +336,7 @@ func (d *baseDelete) processDelete() (string, error) {
 	str := getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("DELETE FROM ")
-	str.WriteString(quoteTable(d.table))
+	str.WriteString(QuoteTable(d.table))
 	return str.String(), nil
 }
 

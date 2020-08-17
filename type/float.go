@@ -27,8 +27,16 @@ func (f *Float) Value() (float64, error) {
 	return f.t.Float64, nil
 }
 
-func (f *Float) IsZero() bool {
+func (f *Float) MustIsZero() bool {
+	f.MustValue()
 	return !f.t.Valid
+}
+
+func (f *Float) IsZero() (bool, error) {
+	if _, err := f.Value(); err != nil {
+		return false, err
+	}
+	return !f.t.Valid, nil
 }
 
 func (f *Float) Set(ft float64) {

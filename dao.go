@@ -3,6 +3,7 @@ package sorm
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/x554462/sorm/builder"
 	"github.com/x554462/sorm/db"
 	"github.com/x554462/sorm/internal"
@@ -11,25 +12,46 @@ import (
 
 const defaultTagName = "db"
 
+type DaoInterface interface {
+	initDao(tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error)
+	Session() *Session
+	GetTableName() string
+	Insert(data map[string]interface{}, indexValues ...interface{}) (model Modeller, err error)
+	Select(forUpdate bool, indexValues ...interface{}) (Modeller, error)
+	SelectById(id interface{}, opts ...Option) (Modeller, error)
+	SelectOne(where map[string]interface{}, opts ...Option) (Modeller, error)
+	SelectOneWithSql(query string, params []interface{}, opts ...Option) (Modeller, error)
+	SelectMulti(where map[string]interface{}, opts ...Option) ([]Modeller, error)
+	SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]Modeller, error)
+	GetCount(column string, where map[string]interface{}, opts ...Option) (int, error)
+	GetSum(column string, where map[string]interface{}, opts ...Option) (int, error)
+	ExecWithSql(query string, params []interface{}) (sql.Result, error)
+	QueryWithSql(query string, params []interface{}) (*sql.Rows, error)
+	ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error)
+}
+
 type Dao struct {
-	// dao绑定的表
-	tableName string
-	// 主键字段
-	indexFields []string
-	// 表字段
-	fields []string
-	// 记录未找到时报错
-	notFoundError error
-	// 绑定session
-	session *Session
-	// 通过反射可用于构造model对象
-	modelType reflect.Type
+	tableName     string       // dao绑定的表
+	indexFields   []string     // 主键字段
+	fields        []string     // 表字段
+	notFoundError error        // 记录未找到时报错
+	session       *Session     // 绑定session
+	modelType     reflect.Type // 通过反射可用于构造model对象
 }
 
 var (
 	ModelRuntimeError  = errors.New("model runtime error")
 	ModelNotFoundError = errors.New("model not found error")
 )
+
+func (d *Dao) initDao(tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error) {
+	d.tableName = tableName
+	d.indexFields = indexFields
+	d.fields = fields
+	d.session = session
+	d.modelType = modelType
+	d.notFoundError = notFoundError
+}
 
 func (d *Dao) buildWhere(indexes ...interface{}) (map[string]interface{}, error) {
 	if len(d.indexFields) != len(indexes) {
@@ -83,17 +105,20 @@ func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error)
 	if err != nil {
 		return 0, err
 	}
-	cond, params, err := builder.Update().Table(d.GetTableName()).Set(data).Where(where).Build()
+	query, params, err := builder.Update().Table(d.GetTableName()).Set(data).Where(where).Build()
 	if err != nil {
 		return 0, err
 	}
-	result, err := d.ExecWithSql(cond, params)
+	result, err := d.ExecWithSql(query, params)
 	if err != nil {
 		return 0, err
 	}
 	affected, err := result.RowsAffected()
 	if affected == 1 {
-		internal.ScanStruct(data, model, defaultTagName)
+		if err = internal.ScanStruct(data, model, defaultTagName); err != nil {
+			return affected, err
+		}
+
 		d.saveCache(model)
 	}
 	return affected, err
@@ -105,11 +130,11 @@ func (d *Dao) remove(model Modeller) error {
 	if err != nil {
 		return err
 	}
-	cond, params, err := builder.Delete().Table(d.GetTableName()).Where(where).Build()
+	query, params, err := builder.Delete().Table(d.GetTableName()).Where(where).Build()
 	if err != nil {
 		return err
 	}
-	result, err := d.ExecWithSql(cond, params)
+	result, err := d.ExecWithSql(query, params)
 	if err != nil {
 		return err
 	}
@@ -130,20 +155,51 @@ func (d *Dao) GetTableName() string {
 	return d.tableName
 }
 
+func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (model Modeller, err error) {
+	query, params, err := builder.Insert().Table(d.GetTableName()).Values(data).Build()
+	if err != nil {
+		return nil, err
+	}
+	err = d.Session().RunInTransaction(func() error {
+		result, err := d.ExecWithSql(query, params)
+		if err != nil {
+			return err
+		}
+		if affected, err := result.RowsAffected(); err != nil {
+			return err
+		} else if affected != 1 {
+			return NewError(ModelRuntimeError, "dao.baseInsert error")
+		}
+		if len(indexValues) > 0 {
+			for i, index := range indexValues {
+				data[d.indexFields[i]] = index
+			}
+		} else if len(d.indexFields) == 1 {
+			if id, err := result.LastInsertId(); err == nil {
+				data[d.indexFields[0]] = id
+				indexValues = append(indexValues, id)
+			}
+		}
+		model, err = d.createOne(data, indexValues, false)
+		return err
+	})
+	return
+}
+
 func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, error) {
 	if forUpdate {
 		where, err := d.buildWhere(indexValues...)
 		if err != nil {
 			return nil, err
 		}
-		cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Tail("FOR UPDATE").Build()
+		query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Tail("FOR UPDATE").Build()
 		if err != nil {
 			return nil, err
 		}
 		if d.Session().tx == nil {
 			return nil, NewError(ModelRuntimeError, "Attempt to load for update out of transaction")
 		}
-		row, err := d.Session().Query(cond, params...)
+		row, err := d.Session().Query(query, params...)
 		if err != nil {
 			return nil, err
 		}
@@ -180,39 +236,12 @@ func (d *Dao) SelectById(id interface{}, opts ...Option) (Modeller, error) {
 	return model, nil
 }
 
-func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (Modeller, error) {
-	cond, params, err := builder.Insert().Table(d.GetTableName()).Values(data).Build()
-	if err != nil {
-		return nil, err
-	}
-	result, err := d.ExecWithSql(cond, params)
-	if err != nil {
-		return nil, err
-	}
-	if affected, err := result.RowsAffected(); err != nil {
-		return nil, err
-	} else if affected != 1 {
-		return nil, NewError(ModelRuntimeError, "dao.baseInsert error")
-	}
-	if len(indexValues) > 0 {
-		for i, index := range indexValues {
-			data[d.indexFields[i]] = index
-		}
-	} else if len(d.indexFields) == 1 {
-		if id, err := result.LastInsertId(); err == nil {
-			data[d.indexFields[0]] = id
-			indexValues = append(indexValues, id)
-		}
-	}
-	return d.createOne(data, indexValues, false)
-}
-
 func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (Modeller, error) {
-	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
+	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
 	}
-	return d.SelectOneWithSql(cond, params, opts...)
+	return d.SelectOneWithSql(query, params, opts...)
 }
 
 func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Option) (Modeller, error) {
@@ -242,11 +271,11 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 }
 
 func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]Modeller, error) {
-	cond, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
+	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
 	}
-	return d.SelectMultiWithSql(cond, params, opts...)
+	return d.SelectMultiWithSql(query, params, opts...)
 }
 
 func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]Modeller, error) {
@@ -269,8 +298,76 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Opt
 	return d.ResolveModelFromRows(rows)
 }
 
+func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Option) (int, error) {
+	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
+		fmt.Sprintf("COUNT(%s)", builder.QuoteIdentifier(column)): "c",
+	}).Where(where).Build()
+	if err != nil {
+		return 0, err
+	}
+	var (
+		rows   *sql.Rows
+		option = newOption()
+	)
+	for _, o := range opts {
+		o(&option)
+	}
+	if option.forceMaster {
+		rows, err = d.Session().Query(query, params...)
+	} else {
+		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+	}
+	if err != nil {
+		return 0, err
+	}
+	var result struct {
+		C int `count:"c"`
+	}
+	err = ResolveFromRows(rows, &result, "count")
+	if err != nil {
+		return 0, err
+	}
+	return result.C, nil
+}
+
+func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option) (int, error) {
+	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
+		fmt.Sprintf("SUM(%s)", builder.QuoteIdentifier(column)): "s",
+	}).Where(where).Build()
+	if err != nil {
+		return 0, err
+	}
+	var (
+		rows   *sql.Rows
+		option = newOption()
+	)
+	for _, o := range opts {
+		o(&option)
+	}
+	if option.forceMaster {
+		rows, err = d.Session().Query(query, params...)
+	} else {
+		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+	}
+	if err != nil {
+		return 0, err
+	}
+	var result struct {
+		S int `sum:"s"`
+	}
+	err = ResolveFromRows(rows, &result, "sum")
+	if err != nil {
+		return 0, err
+	}
+	return result.S, nil
+}
+
 func (d *Dao) ExecWithSql(query string, params []interface{}) (sql.Result, error) {
 	return d.Session().Exec(query, params...)
+}
+
+func (d *Dao) QueryWithSql(query string, params []interface{}) (*sql.Rows, error) {
+	return d.Session().Query(query, params...)
 }
 
 func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error) {

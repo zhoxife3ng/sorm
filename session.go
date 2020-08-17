@@ -14,14 +14,14 @@ const daoModelLruCacheSize = 50
 
 var sessionPool = sync.Pool{
 	New: func() interface{} {
-		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize), daoMap: make(map[string]*Dao)}
+		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize), daoMap: make(map[string]DaoInterface)}
 	},
 }
 
 type Session struct {
 	lock          sync.RWMutex
 	tx            *sql.Tx
-	daoMap        map[string]*Dao
+	daoMap        map[string]DaoInterface
 	daoModelCache *modelLruCache
 	ctx           context.Context
 }
@@ -32,7 +32,7 @@ func NewSession(ctx context.Context) *Session {
 	return sess
 }
 
-func (s *Session) GetDao(model Modeller) *Dao {
+func (s *Session) GetDao(model Modeller) DaoInterface {
 	t := reflect.Indirect(reflect.ValueOf(model)).Type()
 	name := t.Name()
 
@@ -49,14 +49,8 @@ func (s *Session) GetDao(model Modeller) *Dao {
 		return value
 	}
 	tableName, indexFields, fields := parseTableInfo(t)
-	dao := &Dao{
-		tableName:     tableName,
-		indexFields:   indexFields,
-		fields:        fields,
-		notFoundError: model.GetNotFoundError(),
-		session:       s,
-		modelType:     t,
-	}
+	dao := model.BuildEmptyDao()
+	dao.initDao(tableName, indexFields, fields, s, t, model.GetNotFoundError())
 	s.daoMap[name] = dao
 	return dao
 }
@@ -99,7 +93,7 @@ func (s *Session) Close() {
 		s.RollbackTransaction()
 		s.tx = nil
 	}
-	s.daoMap = make(map[string]*Dao)
+	s.daoMap = make(map[string]DaoInterface)
 	s.daoModelCache.Clear()
 	s.ctx = nil
 	sessionPool.Put(s)
@@ -121,6 +115,21 @@ func (s *Session) Exec(query string, args ...interface{}) (sql.Result, error) {
 		return s.tx.ExecContext(s.ctx, query, args...)
 	}
 	return db.GetInstance().ExecContext(s.ctx, query, args...)
+}
+
+func (s *Session) RunInTransaction(f func() error) (err error) {
+	if s.InTransaction() {
+		err = f()
+	} else {
+		s.BeginTransaction()
+		err = f()
+		if err != nil {
+			s.RollbackTransaction()
+		} else {
+			s.SubmitTransaction()
+		}
+	}
+	return
 }
 
 func (s *Session) ClearAllCache() {

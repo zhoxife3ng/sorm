@@ -32,8 +32,16 @@ func (b *Bool) Set(bl bool) {
 	b.t.Valid = true
 }
 
-func (b *Bool) IsZero() bool {
+func (b *Bool) MustIsZero() bool {
+	b.MustValue()
 	return !b.t.Valid
+}
+
+func (b *Bool) IsZero() (bool, error) {
+	if _, err := b.Value(); err != nil {
+		return false, err
+	}
+	return !b.t.Valid, nil
 }
 
 func (b *Bool) Scan(value interface{}) error {

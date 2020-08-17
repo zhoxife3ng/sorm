@@ -25,7 +25,7 @@ func (s *Slice) Value() ([]interface{}, error) {
 			return nil, err
 		}
 	}
-	if s.IsZero() {
+	if !s.t.Valid {
 		return nil, nil
 	}
 	var data []interface{}
@@ -33,8 +33,16 @@ func (s *Slice) Value() ([]interface{}, error) {
 	return data, err
 }
 
-func (s *Slice) IsZero() bool {
+func (s *Slice) MustIsZero() bool {
+	s.MustValue()
 	return !s.t.Valid
+}
+
+func (s *Slice) IsZero() (bool, error) {
+	if _, err := s.Value(); err != nil {
+		return false, err
+	}
+	return !s.t.Valid, nil
 }
 
 func (s *Slice) Set(sl map[string]interface{}) {

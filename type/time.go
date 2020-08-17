@@ -28,8 +28,16 @@ func (t *Time) Value() (time.Time, error) {
 	return t.t.Time, nil
 }
 
-func (t *Time) IsZero() bool {
+func (t *Time) MustIsZero() bool {
+	t.MustValue()
 	return !t.t.Valid
+}
+
+func (t *Time) IsZero() (bool, error) {
+	if _, err := t.Value(); err != nil {
+		return false, err
+	}
+	return !t.t.Valid, nil
 }
 
 func (t *Time) Set(tm time.Time) {

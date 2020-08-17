@@ -27,8 +27,16 @@ func (s *String) Value() (string, error) {
 	return s.t.String, nil
 }
 
-func (s *String) IsZero() bool {
+func (s *String) MustIsZero() bool {
+	s.MustValue()
 	return !s.t.Valid
+}
+
+func (s *String) IsZero() (bool, error) {
+	if _, err := s.Value(); err != nil {
+		return false, err
+	}
+	return !s.t.Valid, nil
 }
 
 func (s *String) Set(str string) {

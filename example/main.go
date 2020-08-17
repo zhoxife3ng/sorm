@@ -22,6 +22,22 @@ func (t *Test) GetNotFoundError() error {
 	return TestNotFoundError
 }
 
+func (t *Test) BuildEmptyDao() sorm.DaoInterface {
+	return &TestDao{}
+}
+
+type TestDao struct {
+	sorm.Dao
+}
+
+func GetTestDao(sess *sorm.Session) *TestDao {
+	return sess.GetDao(new(Test)).(*TestDao)
+}
+
+func (td *TestDao) Count() (int, error) {
+	return td.GetCount("*", map[string]interface{}{})
+}
+
 func setupDb() {
 	db.Setup(
 		db.Conf{
@@ -48,7 +64,10 @@ func main() {
 	sess := sorm.NewSession(context.TODO())
 	defer sess.Close()
 
-	testD := sess.GetDao(new(Test)) //获取操作该对象的dao
+	testD := GetTestDao(sess) //获取操作该对象的dao
+
+	fmt.Println(testD.Count())
+	fmt.Println(testD.GetSum("id", map[string]interface{}{}))
 
 	//插入一条记录，并返回对象
 	model, err := testD.Insert(map[string]interface{}{

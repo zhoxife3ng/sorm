@@ -25,7 +25,7 @@ func (m *Map) Value() (map[string]interface{}, error) {
 			return nil, err
 		}
 	}
-	if m.IsZero() {
+	if !m.t.Valid {
 		return nil, nil
 	}
 	var data map[string]interface{}
@@ -33,8 +33,16 @@ func (m *Map) Value() (map[string]interface{}, error) {
 	return data, err
 }
 
-func (m *Map) IsZero() bool {
+func (m *Map) MustIsZero() bool {
+	m.MustValue()
 	return !m.t.Valid
+}
+
+func (m *Map) IsZero() (bool, error) {
+	if _, err := m.Value(); err != nil {
+		return false, err
+	}
+	return !m.t.Valid, nil
 }
 
 func (m *Map) Set(mp map[string]interface{}) {

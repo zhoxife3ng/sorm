@@ -16,14 +16,14 @@ const (
 	OpNotLike = " NOT LIKE "
 )
 
-func quoteTable(table string) string {
+func QuoteTable(table string) string {
 	tableName, aliasTableName := resolveIdentifier(table)
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(tableName))
+	str.WriteString(QuoteIdentifier(tableName))
 	if tableName != aliasTableName {
 		str.WriteString(" AS ")
-		str.WriteString(quoteIdentifier(aliasTableName))
+		str.WriteString(QuoteIdentifier(aliasTableName))
 	}
 	return str.String()
 }
@@ -48,7 +48,7 @@ func resolveIdentifier(identifier string) (name string, alias string) {
 	return strings.Trim(s[0], " "), strings.Trim(s[1], " ")
 }
 
-func quoteIdentifier(identifier string) string {
+func QuoteIdentifier(identifier string) string {
 	name, alias := resolveIdentifier(identifier)
 	var ids []string
 	if name == alias {
@@ -83,7 +83,7 @@ func quoteIdentifier(identifier string) string {
 func operate(left, operator string, right interface{}) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(left))
+	str.WriteString(QuoteIdentifier(left))
 	str.WriteString(operator)
 	str.WriteString("?")
 	return NewExpression(str.String(), right)
@@ -134,7 +134,7 @@ func notExists(specification string, values ...interface{}) *Expression {
 func in(identifier string, values ...interface{}) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(identifier))
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" IN (")
 	for j := 0; j < len(values); j++ {
 		if j != 0 {
@@ -149,7 +149,7 @@ func in(identifier string, values ...interface{}) *Expression {
 func notIn(identifier string, values ...interface{}) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(identifier))
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" NOT IN (")
 	for j := 0; j < len(values); j++ {
 		if j != 0 {
@@ -164,7 +164,7 @@ func notIn(identifier string, values ...interface{}) *Expression {
 func isNull(identifier string) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(identifier))
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" IS NULL")
 	return NewExpression(str.String())
 }
@@ -172,7 +172,7 @@ func isNull(identifier string) *Expression {
 func isNotNull(identifier string) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(quoteIdentifier(identifier))
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" IS NOT NULL")
 	return NewExpression(str.String())
 }

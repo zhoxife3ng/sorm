@@ -34,7 +34,7 @@ func (j *join) GetJoins() []joinAttr {
 
 func (j *join) join(name string, on []string, joinType string, columns ...string) *join {
 	for i, onv := range on {
-		on[i] = quoteIdentifier(onv)
+		on[i] = QuoteIdentifier(onv)
 	}
 	j.joins = append(j.joins, joinAttr{
 		name:    name,

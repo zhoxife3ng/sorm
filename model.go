@@ -8,10 +8,11 @@ import (
 )
 
 type Modeller interface {
+	BuildEmptyDao() DaoInterface
 	initBase(dao *Dao, indexValues []interface{}, loaded bool)
 	GetNotFoundError() error
 	IndexValues() []interface{}
-	GetDao() *Dao
+	GetDao() DaoInterface
 	Loaded() bool
 	Load(opts ...Option) (Modeller, error)
 	Update(set map[string]interface{}) (int64, error)
@@ -25,13 +26,17 @@ type BaseModel struct {
 	indexValues []interface{}
 }
 
+func (bm *BaseModel) BuildEmptyDao() DaoInterface {
+	return &Dao{}
+}
+
 func (bm *BaseModel) initBase(dao *Dao, indexValues []interface{}, loaded bool) {
 	bm.dao = dao
 	bm.loaded = loaded
 	bm.indexValues = indexValues
 }
 
-func (bm *BaseModel) GetDao() *Dao {
+func (bm *BaseModel) GetDao() DaoInterface {
 	return bm.dao
 }
 
@@ -59,7 +64,12 @@ func (bm *BaseModel) Update(set map[string]interface{}) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return bm.dao.update(model, set)
+	var affected int64 = 0
+	err = bm.dao.Session().RunInTransaction(func() error {
+		affected, err = bm.dao.update(model, set)
+		return err
+	})
+	return affected, err
 }
 
 func (bm *BaseModel) Remove() error {
@@ -67,7 +77,9 @@ func (bm *BaseModel) Remove() error {
 	if err != nil {
 		return err
 	}
-	return bm.dao.remove(model)
+	return bm.dao.Session().RunInTransaction(func() error {
+		return bm.dao.remove(model)
+	})
 }
 
 func (bm *BaseModel) IndexValues() []interface{} {

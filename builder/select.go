@@ -7,6 +7,7 @@ type baseSelect struct {
 	table      string
 	forceIndex string
 	tail       string
+	fColumns   map[string]string
 	columns    []string
 	order      []string
 	group      []string
@@ -37,6 +38,11 @@ func (s *baseSelect) Table(table string) *baseSelect {
 
 func (s *baseSelect) Quantifier(quantifier string) *baseSelect {
 	s.quantifier = quantifier
+	return s
+}
+
+func (s *baseSelect) FuncColumns(fColumns map[string]string) *baseSelect {
+	s.fColumns = fColumns
 	return s
 }
 

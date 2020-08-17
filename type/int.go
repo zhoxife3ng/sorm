@@ -27,8 +27,16 @@ func (i *Int) Value() (int, error) {
 	return int(i.t.Int64), nil
 }
 
-func (i *Int) IsZero() bool {
+func (i *Int) MustIsZero() bool {
+	i.MustValue()
 	return !i.t.Valid
+}
+
+func (i *Int) IsZero() (bool, error) {
+	if _, err := i.Value(); err != nil {
+		return false, err
+	}
+	return !i.t.Valid, nil
 }
 
 func (i *Int) Set(it int) {
