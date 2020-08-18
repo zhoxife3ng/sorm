@@ -32,7 +32,7 @@ func putStrBuilder(str *strings.Builder) {
 	builder.Put(str)
 }
 
-type SqlBuilder interface {
+type SqlBuildIfe interface {
 	Build() (string, []interface{}, error)
 }
 

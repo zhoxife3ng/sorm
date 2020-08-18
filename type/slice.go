@@ -8,7 +8,7 @@ import (
 
 type Slice struct {
 	t     sql.NullString
-	model sorm.Modeller
+	model sorm.ModelIfe
 }
 
 func (s *Slice) MustValue() []interface{} {
@@ -56,7 +56,7 @@ func (s *Slice) Scan(value interface{}) error {
 }
 
 func (s *Slice) BindModel(target interface{}) {
-	if model, ok := target.(sorm.Modeller); ok {
+	if model, ok := target.(sorm.ModelIfe); ok {
 		s.model = model
 	}
 }

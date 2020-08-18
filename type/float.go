@@ -7,7 +7,7 @@ import (
 
 type Float struct {
 	t     sql.NullFloat64
-	model sorm.Modeller
+	model sorm.ModelIfe
 }
 
 func (f *Float) MustValue() float64 {
@@ -49,7 +49,7 @@ func (f *Float) Scan(value interface{}) error {
 }
 
 func (f *Float) BindModel(target interface{}) {
-	if model, ok := target.(sorm.Modeller); ok {
+	if model, ok := target.(sorm.ModelIfe); ok {
 		f.model = model
 	}
 }

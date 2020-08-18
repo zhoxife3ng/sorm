@@ -7,7 +7,7 @@ import (
 
 type Bool struct {
 	t     sql.NullBool
-	model sorm.Modeller
+	model sorm.ModelIfe
 }
 
 func (b *Bool) MustValue() bool {
@@ -49,7 +49,7 @@ func (b *Bool) Scan(value interface{}) error {
 }
 
 func (b *Bool) BindModel(target interface{}) {
-	if model, ok := target.(sorm.Modeller); ok {
+	if model, ok := target.(sorm.ModelIfe); ok {
 		b.model = model
 	}
 }

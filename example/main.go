@@ -22,8 +22,12 @@ func (t *Test) GetNotFoundError() error {
 	return TestNotFoundError
 }
 
-func (t *Test) BuildEmptyDao() sorm.DaoInterface {
+func (t *Test) CustomDao() sorm.DaoIfe {
 	return &TestDao{}
+}
+
+func (t *Test) GetDao() *TestDao {
+	return t.GetDaoIfe().(*TestDao)
 }
 
 type TestDao struct {
@@ -75,7 +79,8 @@ func main() {
 		"time": time.Now(),
 	})
 	fmt.Println(model, err) //&Test{...}    nil
-	id := model.GetId()     //得到刚刚插入的自增id
+	fmt.Println(model.GetDaoIfe().(*TestDao).Count())
+	id := model.GetId() //得到刚刚插入的自增id
 
 	//删除刚插入的记录
 	model.Remove()

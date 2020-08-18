@@ -15,7 +15,7 @@ func buildPredicate(where interface{}, values ...interface{}) *Predicate {
 	)
 	switch w := where.(type) {
 	case string:
-		var predicateIfe Predicator
+		var predicateIfe PredicateIfe
 		if strings.Contains(w, PlaceHolder) {
 			if strings.Count(w, PlaceHolder) != len(values) {
 				predicateIfe = ErrExpression(ErrBuildPlaceHolder)
@@ -48,7 +48,7 @@ func buildPredicate(where interface{}, values ...interface{}) *Predicate {
 		wherePredicate.AddPredicate(predicateIfe, combination)
 	case map[string]interface{}:
 		for key, value := range w {
-			var predicateIfe Predicator
+			var predicateIfe PredicateIfe
 			if strings.Contains(key, PlaceHolder) {
 				if v, ok := value.([]interface{}); ok {
 					if strings.Count(key, PlaceHolder) != len(v) {
@@ -80,7 +80,7 @@ func buildPredicate(where interface{}, values ...interface{}) *Predicate {
 			}
 			wherePredicate.AddPredicate(predicateIfe, combination)
 		}
-	case Predicator:
+	case PredicateIfe:
 		if w != nil {
 			wherePredicate.AddPredicate(w, combination)
 		}

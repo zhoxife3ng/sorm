@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func (d *Dao) queryCache(indexes ...interface{}) (Modeller, error) {
+func (d *Dao) queryCache(indexes ...interface{}) (ModelIfe, error) {
 	key, err := d.buildKey(indexes...)
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func (d *Dao) removeCache(indexes ...interface{}) {
 	}
 }
 
-func (d *Dao) saveCache(model Modeller) {
+func (d *Dao) saveCache(model ModelIfe) {
 	if key, err := d.buildKey(model.IndexValues()...); err == nil {
 		d.Session().daoModelCache.Put(key, model)
 	}
@@ -66,7 +66,7 @@ const maxLength = 200
 
 type element struct {
 	listElem *list.Element
-	model    Modeller
+	model    ModelIfe
 }
 
 type modelLruCache struct {
@@ -96,7 +96,7 @@ func (lru *modelLruCache) Clear() {
 	lru.used = 0
 }
 
-func (lru *modelLruCache) Get(key string) (Modeller, error) {
+func (lru *modelLruCache) Get(key string) (ModelIfe, error) {
 	if lru.used > 0 {
 		lru.locker.RLock()
 		defer lru.locker.RUnlock()
@@ -108,7 +108,7 @@ func (lru *modelLruCache) Get(key string) (Modeller, error) {
 	return nil, ModelNotFoundError
 }
 
-func (lru *modelLruCache) Put(key string, model Modeller) {
+func (lru *modelLruCache) Put(key string, model ModelIfe) {
 
 	lru.locker.Lock()
 	defer lru.locker.Unlock()
@@ -132,7 +132,7 @@ func (lru *modelLruCache) Del(key string) {
 	}
 }
 
-func (lru *modelLruCache) addElement(key string, model Modeller) {
+func (lru *modelLruCache) addElement(key string, model ModelIfe) {
 	lru.used++
 	listElem := lru.list.PushBack(key)
 	lru.elements[key] = &element{listElem: listElem, model: model}

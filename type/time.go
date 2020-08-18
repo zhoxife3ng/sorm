@@ -8,7 +8,7 @@ import (
 
 type Time struct {
 	t     sql.NullTime
-	model sorm.Modeller
+	model sorm.ModelIfe
 }
 
 func (t *Time) MustValue() time.Time {
@@ -50,7 +50,7 @@ func (t *Time) Scan(value interface{}) error {
 }
 
 func (t *Time) BindModel(target interface{}) {
-	if model, ok := target.(sorm.Modeller); ok {
+	if model, ok := target.(sorm.ModelIfe); ok {
 		t.model = model
 	}
 }

@@ -36,7 +36,7 @@ func newScanError(err error, structName string, from, to reflect.Type) ScanError
 	return ScanError{err, structName, from, to}
 }
 
-type Typer interface {
+type TypeIfe interface {
 	BindModel(target interface{})
 }
 
@@ -89,7 +89,7 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 				if targetValueField.CanSet() {
 					if scanner, ok := targetValueFieldIfe.(sql.Scanner); ok {
 						err = scanner.Scan(dataVal)
-						if typer, ok := targetValueFieldIfe.(Typer); ok {
+						if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
 							typer.BindModel(target)
 						}
 					} else {
@@ -102,7 +102,7 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 					err = newScanError(err, targetName, reflect.TypeOf(dataVal), targetValueField.Type())
 					return
 				}
-			} else if typer, ok := targetValueFieldIfe.(Typer); ok {
+			} else if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
 				typer.BindModel(target)
 			}
 		}

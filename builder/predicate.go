@@ -10,13 +10,13 @@ const (
 	defaultCombination = CombinedByAnd
 )
 
-type Predicator interface {
+type PredicateIfe interface {
 	GetExpressionData() ([]interface{}, error)
 }
 
 type predicateExpression struct {
 	combination    string
-	expressionData Predicator
+	expressionData PredicateIfe
 }
 
 type Predicate struct {
@@ -31,7 +31,7 @@ func NewPredicate() *Predicate {
 	}
 }
 
-func (p *Predicate) AddPredicate(predicate Predicator, combination string) *Predicate {
+func (p *Predicate) AddPredicate(predicate PredicateIfe, combination string) *Predicate {
 	if predicate != nil {
 		if specs, _ := predicate.GetExpressionData(); len(specs) > 0 {
 			if combination == CombinedByOr {
@@ -45,7 +45,7 @@ func (p *Predicate) AddPredicate(predicate Predicator, combination string) *Pred
 	return p
 }
 
-func (p *Predicate) AndPredicate(predicate Predicator) *Predicate {
+func (p *Predicate) AndPredicate(predicate PredicateIfe) *Predicate {
 	p.predicates = append(p.predicates, predicateExpression{
 		combination:    CombinedByAnd,
 		expressionData: predicate,
@@ -53,7 +53,7 @@ func (p *Predicate) AndPredicate(predicate Predicator) *Predicate {
 	return p
 }
 
-func (p *Predicate) OrPredicate(predicate Predicator) *Predicate {
+func (p *Predicate) OrPredicate(predicate PredicateIfe) *Predicate {
 	p.predicates = append(p.predicates, predicateExpression{
 		combination:    CombinedByOr,
 		expressionData: predicate,

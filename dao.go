@@ -12,25 +12,29 @@ import (
 
 const defaultTagName = "db"
 
-type DaoInterface interface {
-	initDao(tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error)
+type DaoIfe interface {
+	initDao(dao DaoIfe, tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error)
+	buildWhere(indexes ...interface{}) (map[string]interface{}, error)
+	update(model ModelIfe, data map[string]interface{}) (int64, error)
+	remove(model ModelIfe) error
 	Session() *Session
 	GetTableName() string
-	Insert(data map[string]interface{}, indexValues ...interface{}) (model Modeller, err error)
-	Select(forUpdate bool, indexValues ...interface{}) (Modeller, error)
-	SelectById(id interface{}, opts ...Option) (Modeller, error)
-	SelectOne(where map[string]interface{}, opts ...Option) (Modeller, error)
-	SelectOneWithSql(query string, params []interface{}, opts ...Option) (Modeller, error)
-	SelectMulti(where map[string]interface{}, opts ...Option) ([]Modeller, error)
-	SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]Modeller, error)
+	Insert(data map[string]interface{}, indexValues ...interface{}) (model ModelIfe, err error)
+	Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, error)
+	SelectById(id interface{}, opts ...Option) (ModelIfe, error)
+	SelectOne(where map[string]interface{}, opts ...Option) (ModelIfe, error)
+	SelectOneWithSql(query string, params []interface{}, opts ...Option) (ModelIfe, error)
+	SelectMulti(where map[string]interface{}, opts ...Option) ([]ModelIfe, error)
+	SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]ModelIfe, error)
 	GetCount(column string, where map[string]interface{}, opts ...Option) (int, error)
 	GetSum(column string, where map[string]interface{}, opts ...Option) (int, error)
 	ExecWithSql(query string, params []interface{}) (sql.Result, error)
 	QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error)
-	ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error)
+	ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error)
 }
 
 type Dao struct {
+	customDao     DaoIfe
 	tableName     string       // dao绑定的表
 	indexFields   []string     // 主键字段
 	fields        []string     // 表字段
@@ -44,7 +48,8 @@ var (
 	ModelNotFoundError = errors.New("model not found error")
 )
 
-func (d *Dao) initDao(tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error) {
+func (d *Dao) initDao(dao DaoIfe, tableName string, indexFields, fields []string, session *Session, modelType reflect.Type, notFoundError error) {
+	d.customDao = dao
 	d.tableName = tableName
 	d.indexFields = indexFields
 	d.fields = fields
@@ -77,9 +82,9 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 }
 
 // 创建model对象
-func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, loaded bool) (Modeller, error) {
+func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, loaded bool) (ModelIfe, error) {
 	var (
-		model Modeller
+		model ModelIfe
 		ok    bool
 		err   error
 	)
@@ -90,17 +95,17 @@ func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, 
 	}
 	if model == nil {
 		vc := reflect.New(d.modelType)
-		model = vc.Interface().(Modeller)
+		model = vc.Interface().(ModelIfe)
 	}
 	if err = internal.ScanStruct(data, model, defaultTagName); err != nil {
 		return nil, err
 	}
-	model.initBase(d, indexValues, loaded)
+	model.initBase(d.customDao, indexValues, loaded)
 	d.saveCache(model)
 	return model, nil
 }
 
-func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error) {
+func (d *Dao) update(model ModelIfe, data map[string]interface{}) (int64, error) {
 	where, err := d.buildWhere(model.IndexValues()...)
 	if err != nil {
 		return 0, err
@@ -124,7 +129,7 @@ func (d *Dao) update(model Modeller, data map[string]interface{}) (int64, error)
 	return affected, err
 }
 
-func (d *Dao) remove(model Modeller) error {
+func (d *Dao) remove(model ModelIfe) error {
 	indexValues := model.IndexValues()
 	where, err := d.buildWhere(indexValues...)
 	if err != nil {
@@ -155,7 +160,7 @@ func (d *Dao) GetTableName() string {
 	return d.tableName
 }
 
-func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (model Modeller, err error) {
+func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (model ModelIfe, err error) {
 	query, params, err := builder.Insert().Table(d.GetTableName()).Values(data).Build()
 	if err != nil {
 		return nil, err
@@ -186,7 +191,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 	return
 }
 
-func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, error) {
+func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, error) {
 	if forUpdate {
 		where, err := d.buildWhere(indexValues...)
 		if err != nil {
@@ -221,7 +226,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (Modeller, erro
 	return d.createOne(where, indexValues, false)
 }
 
-func (d *Dao) SelectById(id interface{}, opts ...Option) (Modeller, error) {
+func (d *Dao) SelectById(id interface{}, opts ...Option) (ModelIfe, error) {
 	option := fetchOption(opts...)
 	model, err := d.Select(option.forUpdate, id)
 	if err != nil {
@@ -233,7 +238,7 @@ func (d *Dao) SelectById(id interface{}, opts ...Option) (Modeller, error) {
 	return model, nil
 }
 
-func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (Modeller, error) {
+func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (ModelIfe, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
@@ -241,7 +246,7 @@ func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (Modeller,
 	return d.SelectOneWithSql(query, params, opts...)
 }
 
-func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Option) (Modeller, error) {
+func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Option) (ModelIfe, error) {
 	var (
 		row    *sql.Rows
 		err    error
@@ -264,7 +269,7 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 	return ms[0], nil
 }
 
-func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]Modeller, error) {
+func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]ModelIfe, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
@@ -272,7 +277,7 @@ func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]Model
 	return d.SelectMultiWithSql(query, params, opts...)
 }
 
-func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]Modeller, error) {
+func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]ModelIfe, error) {
 	var (
 		rows   *sql.Rows
 		err    error
@@ -360,7 +365,7 @@ func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (
 	}
 }
 
-func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error) {
+func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
@@ -372,7 +377,7 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]Modeller, error) {
 		values[i] = new(interface{})
 	}
 	var (
-		data        = make([]Modeller, 0)
+		data        = make([]ModelIfe, 0)
 		indexValues = make([]interface{}, 0, len(d.indexFields))
 	)
 	for rows.Next() {

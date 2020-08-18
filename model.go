@@ -7,14 +7,14 @@ import (
 	"sync"
 )
 
-type Modeller interface {
-	BuildEmptyDao() DaoInterface
-	initBase(dao *Dao, indexValues []interface{}, loaded bool)
+type ModelIfe interface {
+	initBase(dao DaoIfe, indexValues []interface{}, loaded bool)
+	CustomDao() DaoIfe
 	GetNotFoundError() error
 	IndexValues() []interface{}
-	GetDao() DaoInterface
+	GetDaoIfe() DaoIfe
 	Loaded() bool
-	Load(opts ...Option) (Modeller, error)
+	Load(opts ...Option) (ModelIfe, error)
 	Update(set map[string]interface{}) (int64, error)
 	Remove() error
 	GetId() interface{}
@@ -22,21 +22,21 @@ type Modeller interface {
 
 type BaseModel struct {
 	loaded      bool
-	dao         *Dao
+	dao         DaoIfe
 	indexValues []interface{}
 }
 
-func (bm *BaseModel) BuildEmptyDao() DaoInterface {
+func (bm *BaseModel) CustomDao() DaoIfe {
 	return &Dao{}
 }
 
-func (bm *BaseModel) initBase(dao *Dao, indexValues []interface{}, loaded bool) {
+func (bm *BaseModel) initBase(dao DaoIfe, indexValues []interface{}, loaded bool) {
 	bm.dao = dao
 	bm.loaded = loaded
 	bm.indexValues = indexValues
 }
 
-func (bm *BaseModel) GetDao() DaoInterface {
+func (bm *BaseModel) GetDaoIfe() DaoIfe {
 	return bm.dao
 }
 
@@ -44,7 +44,7 @@ func (bm *BaseModel) Loaded() bool {
 	return bm.loaded
 }
 
-func (bm *BaseModel) Load(opts ...Option) (Modeller, error) {
+func (bm *BaseModel) Load(opts ...Option) (ModelIfe, error) {
 	option := fetchOption(opts...)
 	if option.forUpdate || bm.Loaded() && !option.forceLoad {
 		return bm.dao.Select(option.forUpdate, bm.indexValues...)
