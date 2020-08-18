@@ -82,16 +82,19 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 }
 
 // 创建model对象
-func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, loaded bool) (ModelIfe, error) {
+func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ...interface{}) (ModelIfe, error) {
 	var (
 		model ModelIfe
 		ok    bool
 		err   error
 	)
-	if indexValues, ok = d.getIndexValuesFromData(data); ok {
-		if model, err = d.QueryCache(indexValues...); err == nil && model != nil && !loaded {
-			return model, nil
+	if len(indexValues) == 0 {
+		if indexValues, ok = d.getIndexValuesFromData(data); !ok {
+			return nil, NewError(ModelRuntimeError, "index values not found")
 		}
+	}
+	if model, err = d.QueryCache(indexValues...); err == nil && model != nil && !loaded {
+		return model, nil
 	}
 	if model == nil {
 		vc := reflect.New(d.modelType)
@@ -185,7 +188,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 				indexValues = append(indexValues, id)
 			}
 		}
-		model, err = d.createOne(data, indexValues, false)
+		model, err = d.CreateObj(data, false, indexValues...)
 		return err
 	})
 	return
@@ -223,7 +226,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 	if err != nil {
 		return nil, err
 	}
-	return d.createOne(where, indexValues, false)
+	return d.CreateObj(where, false, indexValues...)
 }
 
 func (d *Dao) SelectById(id interface{}, opts ...Option) (ModelIfe, error) {
@@ -316,7 +319,7 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 	var result struct {
 		C int `count:"c"`
 	}
-	err = ResolveFromRows(rows, &result, "count")
+	err = resolveFromRows(rows, &result, "count")
 	if err != nil {
 		return 0, err
 	}
@@ -345,7 +348,7 @@ func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option
 	var result struct {
 		S int `sum:"s"`
 	}
-	err = ResolveFromRows(rows, &result, "sum")
+	err = resolveFromRows(rows, &result, "sum")
 	if err != nil {
 		return 0, err
 	}
@@ -392,7 +395,7 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
 		for _, indexField := range d.indexFields {
 			indexValues = append(indexValues, mp[indexField])
 		}
-		if m, err := d.createOne(mp, indexValues, true); err == nil {
+		if m, err := d.CreateObj(mp, true, indexValues...); err == nil {
 			data = append(data, m)
 		} else {
 			return nil, err
@@ -428,7 +431,7 @@ func ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return data, nil
 }
 
-func ResolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
+func resolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
 	data, err := ResolveDataFromRows(rows)
 	if err != nil {
 		return err
