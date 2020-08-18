@@ -73,6 +73,16 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 	}()
 	targetType := reflect.TypeOf(target).Elem()
 	targetValue := reflect.ValueOf(target).Elem()
+	targetValueType := targetValue.Type()
+	if targetValueType.Kind() == reflect.Ptr {
+		targetValueObj := reflect.New(targetValueType.Elem())
+		targetValueObjIfe := targetValueObj.Interface()
+		err = ScanStruct(data, targetValueObjIfe, tagName)
+		if nil == err {
+			targetValue.Set(targetValueObj)
+		}
+		return
+	}
 	targetName := targetType.Name()
 	for i := 0; i < targetType.NumField(); i++ {
 		if tagValue, ok := targetType.Field(i).Tag.Lookup(tagName); ok {
