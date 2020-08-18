@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func (d *Dao) queryCache(indexes ...interface{}) (ModelIfe, error) {
+func (d *Dao) QueryCache(indexes ...interface{}) (ModelIfe, error) {
 	key, err := d.buildKey(indexes...)
 	if err != nil {
 		return nil, err
@@ -16,13 +16,13 @@ func (d *Dao) queryCache(indexes ...interface{}) (ModelIfe, error) {
 	return d.Session().daoModelCache.Get(key)
 }
 
-func (d *Dao) removeCache(indexes ...interface{}) {
+func (d *Dao) RemoveCache(indexes ...interface{}) {
 	if key, err := d.buildKey(indexes...); err == nil {
 		d.Session().daoModelCache.Del(key)
 	}
 }
 
-func (d *Dao) saveCache(model ModelIfe) {
+func (d *Dao) SaveCache(model ModelIfe) {
 	if key, err := d.buildKey(model.IndexValues()...); err == nil {
 		d.Session().daoModelCache.Put(key, model)
 	}

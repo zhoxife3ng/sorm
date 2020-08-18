@@ -89,7 +89,7 @@ func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, 
 		err   error
 	)
 	if indexValues, ok = d.getIndexValuesFromData(data); ok {
-		if model, err = d.queryCache(indexValues...); err == nil && model != nil && !loaded {
+		if model, err = d.QueryCache(indexValues...); err == nil && model != nil && !loaded {
 			return model, nil
 		}
 	}
@@ -101,7 +101,7 @@ func (d *Dao) createOne(data map[string]interface{}, indexValues []interface{}, 
 		return nil, err
 	}
 	model.initBase(d.customDao, indexValues, loaded)
-	d.saveCache(model)
+	d.SaveCache(model)
 	return model, nil
 }
 
@@ -124,7 +124,7 @@ func (d *Dao) update(model ModelIfe, data map[string]interface{}) (int64, error)
 			return affected, err
 		}
 
-		d.saveCache(model)
+		d.SaveCache(model)
 	}
 	return affected, err
 }
@@ -148,7 +148,7 @@ func (d *Dao) remove(model ModelIfe) error {
 	} else if affected == 0 {
 		return d.notFoundError
 	}
-	d.removeCache(indexValues...)
+	d.RemoveCache(indexValues...)
 	return nil
 }
 
@@ -216,7 +216,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 		}
 		return ms[0], nil
 	}
-	if obj, err := d.queryCache(indexValues...); err == nil {
+	if obj, err := d.QueryCache(indexValues...); err == nil {
 		return obj, nil
 	}
 	where, err := d.buildWhere(indexValues...)
