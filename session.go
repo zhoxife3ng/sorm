@@ -57,9 +57,7 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 }
 
 func (s *Session) BeginTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx == nil {
+	if s.InTransaction() {
 		var err error
 		if s.tx, err = db.GetInstance().Begin(); err != nil {
 			log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
@@ -70,9 +68,7 @@ func (s *Session) BeginTransaction() {
 }
 
 func (s *Session) RollbackTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx != nil {
+	if s.InTransaction() {
 		if err := s.tx.Rollback(); err != nil {
 			log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
 		}
@@ -81,9 +77,7 @@ func (s *Session) RollbackTransaction() {
 }
 
 func (s *Session) SubmitTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx != nil {
+	if s.InTransaction() {
 		if err := s.tx.Commit(); err != nil {
 			log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
 		}
@@ -98,9 +92,7 @@ func (s *Session) InTransaction() bool {
 }
 
 func (s *Session) Close() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx != nil {
+	if s.InTransaction() {
 		s.RollbackTransaction()
 		s.tx = nil
 	}
