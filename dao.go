@@ -379,10 +379,7 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
 	for i := 0; i < length; i++ {
 		values[i] = new(interface{})
 	}
-	var (
-		data        = make([]ModelIfe, 0)
-		indexValues = make([]interface{}, 0, len(d.indexFields))
-	)
+	var data = make([]ModelIfe, 0)
 	for rows.Next() {
 		err = rows.Scan(values...)
 		if err != nil {
@@ -392,15 +389,11 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
 		for idx, name := range columns {
 			mp[name] = *(values[idx].(*interface{}))
 		}
-		for _, indexField := range d.indexFields {
-			indexValues = append(indexValues, mp[indexField])
-		}
-		if m, err := d.CreateObj(mp, true, indexValues...); err == nil {
+		if m, err := d.CreateObj(mp, true); err == nil {
 			data = append(data, m)
 		} else {
 			return nil, err
 		}
-		indexValues = indexValues[0:0]
 	}
 	return data, nil
 }
