@@ -58,12 +58,12 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 
 func (s *Session) BeginTransaction() {
 	if s.InTransaction() {
+		log.Printf("session.BeginTransaction: can not begin tx again")
+	} else {
 		var err error
 		if s.tx, err = db.GetInstance().Begin(); err != nil {
 			log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
 		}
-	} else {
-		log.Printf("session.BeginTransaction: can not begin tx again")
 	}
 }
 
