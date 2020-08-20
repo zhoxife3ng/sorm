@@ -178,11 +178,11 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 		} else if affected != 1 {
 			return NewError(ModelRuntimeError, "dao.baseInsert error")
 		}
-		var pk = make([]interface{}, len(indexValues))
+		var pk = make([]interface{}, 0)
 		if len(indexValues) > 0 {
 			for i, index := range indexValues {
 				data[d.indexFields[i]] = index
-				pk = append(pk, indexValues)
+				pk = append(pk, index)
 			}
 		} else if len(d.indexFields) == 1 {
 			if id, err := result.LastInsertId(); err == nil {
