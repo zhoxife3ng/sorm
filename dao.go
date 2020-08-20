@@ -178,17 +178,19 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 		} else if affected != 1 {
 			return NewError(ModelRuntimeError, "dao.baseInsert error")
 		}
+		var pk = make([]interface{}, len(indexValues))
 		if len(indexValues) > 0 {
 			for i, index := range indexValues {
 				data[d.indexFields[i]] = index
+				pk = append(pk, indexValues)
 			}
 		} else if len(d.indexFields) == 1 {
 			if id, err := result.LastInsertId(); err == nil {
 				data[d.indexFields[0]] = id
-				indexValues = append(indexValues, id)
+				pk = append(pk, indexValues[0])
 			}
 		}
-		model, err = d.CreateObj(data, false, indexValues...)
+		model, err = d.CreateObj(data, false, pk...)
 		return err
 	})
 	return
@@ -226,7 +228,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 	if err != nil {
 		return nil, err
 	}
-	return d.CreateObj(where, false, indexValues...)
+	return d.CreateObj(where, false)
 }
 
 func (d *Dao) SelectById(id interface{}, opts ...Option) (ModelIfe, error) {

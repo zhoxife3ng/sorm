@@ -19,7 +19,8 @@ var sessionPool = sync.Pool{
 }
 
 type Session struct {
-	lock          sync.RWMutex
+	daoLocker     sync.RWMutex
+	txLocker      sync.Mutex
 	tx            *sql.Tx
 	daoMap        map[string]DaoIfe
 	daoModelCache *modelLruCache
@@ -36,15 +37,15 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 	t := reflect.Indirect(reflect.ValueOf(model)).Type()
 	name := t.Name()
 
-	s.lock.RLock()
+	s.daoLocker.RLock()
 	if value, ok := s.daoMap[name]; ok {
-		s.lock.RUnlock()
+		s.daoLocker.RUnlock()
 		return value
 	}
-	s.lock.RUnlock()
+	s.daoLocker.RUnlock()
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.daoLocker.Lock()
+	defer s.daoLocker.Unlock()
 	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
@@ -56,6 +57,8 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 }
 
 func (s *Session) BeginTransaction() {
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
 	if s.tx == nil {
 		var err error
 		if s.tx, err = db.GetInstance().Begin(); err != nil {
@@ -67,6 +70,8 @@ func (s *Session) BeginTransaction() {
 }
 
 func (s *Session) RollbackTransaction() {
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
 	if s.tx != nil {
 		if err := s.tx.Rollback(); err != nil {
 			log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
@@ -76,6 +81,8 @@ func (s *Session) RollbackTransaction() {
 }
 
 func (s *Session) SubmitTransaction() {
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
 	if s.tx != nil {
 		if err := s.tx.Commit(); err != nil {
 			log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
@@ -85,10 +92,14 @@ func (s *Session) SubmitTransaction() {
 }
 
 func (s *Session) InTransaction() bool {
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
 	return s.tx != nil
 }
 
 func (s *Session) Close() {
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
 	if s.tx != nil {
 		s.RollbackTransaction()
 		s.tx = nil
@@ -104,14 +115,14 @@ func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, er
 }
 
 func (s *Session) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	if s.tx != nil {
+	if s.InTransaction() {
 		return s.tx.QueryContext(s.ctx, query, args...)
 	}
 	return db.GetInstance().QueryContext(s.ctx, query, args...)
 }
 
 func (s *Session) Exec(query string, args ...interface{}) (sql.Result, error) {
-	if s.tx != nil {
+	if s.InTransaction() {
 		return s.tx.ExecContext(s.ctx, query, args...)
 	}
 	return db.GetInstance().ExecContext(s.ctx, query, args...)
