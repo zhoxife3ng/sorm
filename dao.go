@@ -257,10 +257,11 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 		err    error
 		option = fetchOption(opts...)
 	)
-	if option.forceMaster {
+	replicaInstance := db.GetReplicaInstance()
+	if option.forceMaster || replicaInstance == nil {
 		row, err = d.Session().Query(query, params...)
 	} else {
-		row, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+		row, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return nil, err
@@ -288,10 +289,11 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Opt
 		err    error
 		option = fetchOption(opts...)
 	)
-	if option.forceMaster {
+	replicaInstance := db.GetReplicaInstance()
+	if option.forceMaster || replicaInstance == nil {
 		rows, err = d.Session().Query(query, params...)
 	} else {
-		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return nil, err
@@ -310,10 +312,11 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 		rows   *sql.Rows
 		option = fetchOption(opts...)
 	)
-	if option.forceMaster {
+	replicaInstance := db.GetReplicaInstance()
+	if option.forceMaster || replicaInstance == nil {
 		rows, err = d.Session().Query(query, params...)
 	} else {
-		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return 0, err
@@ -339,10 +342,11 @@ func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option
 		rows   *sql.Rows
 		option = fetchOption(opts...)
 	)
-	if option.forceMaster {
+	replicaInstance := db.GetReplicaInstance()
+	if option.forceMaster || replicaInstance == nil {
 		rows, err = d.Session().Query(query, params...)
 	} else {
-		rows, err = db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
 	if err != nil {
 		return 0, err
@@ -363,10 +367,11 @@ func (d *Dao) ExecWithSql(query string, params []interface{}) (sql.Result, error
 
 func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error) {
 	option := fetchOption(opts...)
+	replicaInstance := db.GetReplicaInstance()
 	if option.forceMaster {
 		return d.Session().Query(query, params...)
 	} else {
-		return db.GetReplicaInstance().QueryContext(d.Session().ctx, query, params...)
+		return replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
 }
 

@@ -74,8 +74,5 @@ func GetInstance() *sql.DB {
 }
 
 func GetReplicaInstance() *sql.DB {
-	if dbInstanceReplica == nil {
-		return GetInstance()
-	}
 	return dbInstanceReplica
 }

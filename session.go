@@ -113,7 +113,11 @@ func (s *Session) Close() {
 }
 
 func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, error) {
-	return db.GetReplicaInstance().QueryContext(s.ctx, query, args...)
+	replicaInstance := db.GetReplicaInstance()
+	if replicaInstance == nil {
+		return nil, NewError(ModelRuntimeError, "replica instance is nil")
+	}
+	return replicaInstance.QueryContext(s.ctx, query, args...)
 }
 
 func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err error) {

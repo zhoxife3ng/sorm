@@ -97,9 +97,9 @@ func (lru *modelLruCache) Clear() {
 }
 
 func (lru *modelLruCache) Get(key string) (ModelIfe, error) {
+	lru.locker.RLock()
+	defer lru.locker.RUnlock()
 	if lru.used > 0 {
-		lru.locker.RLock()
-		defer lru.locker.RUnlock()
 		if element, ok := lru.elements[key]; ok {
 			lru.list.MoveToBack(element.listElem)
 			return element.model, nil
@@ -125,6 +125,10 @@ func (lru *modelLruCache) Put(key string, model ModelIfe) {
 }
 
 func (lru *modelLruCache) Del(key string) {
+
+	lru.locker.Lock()
+	defer lru.locker.Unlock()
+
 	if element, ok := lru.elements[key]; ok {
 		lru.list.Remove(element.listElem)
 		delete(lru.elements, key)
