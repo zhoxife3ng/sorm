@@ -129,11 +129,7 @@ func (lru *modelLruCache) Del(key string) {
 	lru.locker.Lock()
 	defer lru.locker.Unlock()
 
-	if element, ok := lru.elements[key]; ok {
-		lru.list.Remove(element.listElem)
-		delete(lru.elements, key)
-		lru.used--
-	}
+	lru.del(key)
 }
 
 func (lru *modelLruCache) addElement(key string, model ModelIfe) {
@@ -145,5 +141,13 @@ func (lru *modelLruCache) addElement(key string, model ModelIfe) {
 func (lru *modelLruCache) delListFrontElement() {
 	frontElem := lru.list.Front()
 	key := frontElem.Value.(string)
-	lru.Del(key)
+	lru.del(key)
+}
+
+func (lru *modelLruCache) del(key string) {
+	if element, ok := lru.elements[key]; ok {
+		lru.list.Remove(element.listElem)
+		delete(lru.elements, key)
+		lru.used--
+	}
 }
