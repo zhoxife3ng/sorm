@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-const daoModelLruCacheSize = 50
+const daoModelLruCacheSize = 200
 
 var sessionPool = sync.Pool{
 	New: func() interface{} {
@@ -142,7 +142,11 @@ func (s *Session) Exec(query string, args ...interface{}) (result sql.Result, er
 	return
 }
 
-func (s *Session) RunInTransaction(f func() error) (err error) {
+func (s *Session) ClearAllCache() {
+	s.daoModelCache.Clear()
+}
+
+func (s *Session) runInTransaction(f func() error) (err error) {
 	s.txLocker.Lock()
 	defer s.txLocker.Unlock()
 	if s.InTransaction() {
@@ -157,10 +161,6 @@ func (s *Session) RunInTransaction(f func() error) (err error) {
 		}
 	}
 	return
-}
-
-func (s *Session) ClearAllCache() {
-	s.daoModelCache.Clear()
 }
 
 func (s *Session) serialRun(f func()) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 func (d *Dao) QueryCache(indexes ...interface{}) (ModelIfe, error) {
@@ -62,11 +63,15 @@ func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 
 // 使用lru算法缓存model
 // 只在当前session有效
-const maxLength = 200
+const (
+	maxLength     = 200
+	minExpireTime = time.Second
+)
 
 type element struct {
 	listElem *list.Element
 	model    ModelIfe
+	time     time.Time
 }
 
 type modelLruCache struct {
@@ -119,8 +124,10 @@ func (lru *modelLruCache) Put(key string, model ModelIfe) {
 		return
 	}
 	lru.addElement(key, model)
-	if lru.used > lru.capacity {
-		lru.delListFrontElement()
+	for used := lru.used; used > lru.capacity; used-- {
+		if !lru.delListFrontElement() {
+			break
+		}
 	}
 }
 
@@ -129,25 +136,29 @@ func (lru *modelLruCache) Del(key string) {
 	lru.locker.Lock()
 	defer lru.locker.Unlock()
 
-	lru.del(key)
-}
-
-func (lru *modelLruCache) addElement(key string, model ModelIfe) {
-	lru.used++
-	listElem := lru.list.PushBack(key)
-	lru.elements[key] = &element{listElem: listElem, model: model}
-}
-
-func (lru *modelLruCache) delListFrontElement() {
-	frontElem := lru.list.Front()
-	key := frontElem.Value.(string)
-	lru.del(key)
-}
-
-func (lru *modelLruCache) del(key string) {
 	if element, ok := lru.elements[key]; ok {
 		lru.list.Remove(element.listElem)
 		delete(lru.elements, key)
 		lru.used--
 	}
+}
+
+func (lru *modelLruCache) addElement(key string, model ModelIfe) {
+	lru.used++
+	listElem := lru.list.PushBack(key)
+	lru.elements[key] = &element{listElem: listElem, model: model, time: time.Now()}
+}
+
+func (lru *modelLruCache) delListFrontElement() bool {
+	frontElem := lru.list.Front()
+	key := frontElem.Value.(string)
+	if element, ok := lru.elements[key]; ok {
+		if element.time.Add(minExpireTime).Before(time.Now()) {
+			lru.list.Remove(element.listElem)
+			delete(lru.elements, key)
+			lru.used--
+			return true
+		}
+	}
+	return false
 }

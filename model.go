@@ -62,7 +62,7 @@ func (bm *BaseModel) Update(set map[string]interface{}) (int64, error) {
 		return 0, err
 	}
 	var affected int64 = 0
-	err = bm.dao.Session().RunInTransaction(func() error {
+	err = bm.dao.Session().runInTransaction(func() error {
 		affected, err = bm.dao.update(model, set)
 		return err
 	})
@@ -74,7 +74,7 @@ func (bm *BaseModel) Remove() error {
 	if err != nil {
 		return err
 	}
-	return bm.dao.Session().RunInTransaction(func() error {
+	return bm.dao.Session().runInTransaction(func() error {
 		return bm.dao.remove(model)
 	})
 }

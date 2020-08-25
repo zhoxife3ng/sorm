@@ -168,7 +168,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 	if err != nil {
 		return nil, err
 	}
-	err = d.Session().RunInTransaction(func() error {
+	err = d.Session().runInTransaction(func() error {
 		result, err := d.ExecWithSql(query, params)
 		if err != nil {
 			return err
@@ -301,6 +301,61 @@ func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Opt
 	return d.ResolveModelFromRows(rows)
 }
 
+func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-chan ModelIfe, <-chan error) {
+	var (
+		modelCh = make(chan ModelIfe, 0)
+		errCh   = make(chan error, 0)
+	)
+	go func(d *Dao, modelCh chan<- ModelIfe, errCh chan<- error) {
+		defer close(modelCh)
+		defer close(errCh)
+		var (
+			rows   *sql.Rows
+			err    error
+			option = fetchOption(opts...)
+		)
+		replicaInstance := db.GetReplicaInstance()
+		if option.forceMaster || replicaInstance == nil {
+			rows, err = d.Session().Query(query, params...)
+		} else {
+			rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
+		}
+		if err != nil {
+			errCh <- err
+			return
+		}
+		defer rows.Close()
+		columns, err := rows.Columns()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		length := len(columns)
+		values := make([]interface{}, length, length)
+		for i := 0; i < length; i++ {
+			values[i] = new(interface{})
+		}
+		for rows.Next() {
+			err = rows.Scan(values...)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			mp := make(map[string]interface{})
+			for idx, name := range columns {
+				mp[name] = *(values[idx].(*interface{}))
+			}
+			if m, err := d.CreateObj(mp, true); err == nil {
+				modelCh <- m
+			} else {
+				errCh <- err
+				return
+			}
+		}
+	}(d, modelCh, errCh)
+	return modelCh, errCh
+}
+
 func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Option) (int, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
 		fmt.Sprintf("COUNT(%s)", builder.QuoteIdentifier(column)): "c",
@@ -373,6 +428,26 @@ func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (
 	} else {
 		return replicaInstance.QueryContext(d.Session().ctx, query, params...)
 	}
+}
+
+func (d *Dao) ResolveChan(modelCh <-chan ModelIfe, errCh <-chan error, f func(model ModelIfe) error) error {
+	breakLoop := false
+	for !breakLoop {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				return err
+			}
+			breakLoop = true
+		case model := <-modelCh:
+			if model == nil {
+				breakLoop = true
+			} else if err := f(model); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
