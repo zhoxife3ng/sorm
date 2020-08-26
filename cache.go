@@ -63,10 +63,7 @@ func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 
 // 使用lru算法缓存model
 // 只在当前session有效
-const (
-	maxLength     = 200
-	minExpireTime = time.Second
-)
+const minExpireTime = time.Second
 
 type element struct {
 	listElem *list.Element
@@ -83,12 +80,8 @@ type modelLruCache struct {
 }
 
 func newDaoLru(capacity int) *modelLruCache {
-	size := maxLength
-	if maxLength > capacity {
-		size = capacity
-	}
 	return &modelLruCache{
-		elements: make(map[string]*element, size),
+		elements: make(map[string]*element),
 		list:     list.New(),
 		capacity: capacity,
 		used:     0,
@@ -96,7 +89,7 @@ func newDaoLru(capacity int) *modelLruCache {
 }
 
 func (lru *modelLruCache) Clear() {
-	lru.elements = make(map[string]*element, lru.used)
+	lru.elements = make(map[string]*element)
 	lru.list.Init()
 	lru.used = 0
 }
