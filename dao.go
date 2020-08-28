@@ -73,7 +73,11 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 	indexValues := make([]interface{}, 0)
 	for _, v := range d.indexFields {
 		if iv, ok := data[v]; ok {
-			indexValues = append(indexValues, iv)
+			if ivb, ok := iv.([]byte); ok {
+				indexValues = append(indexValues, internal.BytesToString(ivb))
+			} else {
+				indexValues = append(indexValues, iv)
+			}
 		} else {
 			return nil, false
 		}
