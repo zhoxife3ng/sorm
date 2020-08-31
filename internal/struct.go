@@ -13,27 +13,27 @@ import (
 
 // error def
 var (
-	ErrNotSupportStructField = errors.New("struct not support")
-	ErrNotSupportMapValue    = errors.New("map not support")
+	ErrNotSupportStructField = errors.New("struct field not support")
+	ErrNotSupportType        = errors.New("data type not support")
 	ErrTargetNotSettable     = errors.New("target not settable")
 )
 
 type ScanError struct {
-	err        error
-	structName string
-	from, to   reflect.Type
+	err                   error
+	structName, fieldName string
+	from, to              reflect.Type
 }
 
 func (s ScanError) Error() string {
-	return fmt.Sprintf("[scan]: %s.%s is %s which is not AssignableBy %s", s.structName, s.to.Name(), s.to, s.from)
+	return fmt.Sprintf("[scan]: %s.%s is %s which is not assignable by %s: %v", s.structName, s.fieldName, s.to, s.from, s.err)
 }
 
 func (s ScanError) Unwrap() error {
 	return s.err
 }
 
-func newScanError(err error, structName string, from, to reflect.Type) ScanError {
-	return ScanError{err, structName, from, to}
+func newScanError(err error, structName, fieldName string, from, to reflect.Type) ScanError {
+	return ScanError{err, structName, fieldName, from, to}
 }
 
 type TypeIfe interface {
@@ -85,7 +85,8 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 	}
 	targetName := targetType.Name()
 	for i := 0; i < targetType.NumField(); i++ {
-		if tagValue, ok := targetType.Field(i).Tag.Lookup(tagName); ok {
+		targetTypeField := targetType.Field(i)
+		if tagValue, ok := targetTypeField.Tag.Lookup(tagName); ok {
 			if idx := strings.IndexByte(tagValue, ','); idx != -1 {
 				if tagValue[:idx] == "pk" {
 					tagValue = tagValue[idx+1:]
@@ -109,7 +110,7 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 					err = ErrTargetNotSettable
 				}
 				if err != nil {
-					err = newScanError(err, targetName, reflect.TypeOf(dataVal), targetValueField.Type())
+					err = newScanError(err, targetName, targetTypeField.Name, reflect.TypeOf(dataVal), targetValueField.Type())
 					return
 				}
 			} else if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
@@ -131,6 +132,8 @@ func scan(targetValueField reflect.Value, dataVal interface{}) (err error) {
 		err = floatConverter(targetValueField, dataVal)
 	case kind == reflect.Slice:
 		err = sliceConverter(targetValueField, dataVal)
+	case kind == reflect.String:
+		err = stringConverter(targetValueField, dataVal)
 	default:
 		if dataValTime, ok := dataVal.(time.Time); ok {
 			if targetValueField.Kind() == reflect.String {
@@ -138,10 +141,10 @@ func scan(targetValueField reflect.Value, dataVal interface{}) (err error) {
 			} else if _, ok := targetValueField.Interface().(time.Time); ok {
 				targetValueField.Set(reflect.ValueOf(dataVal))
 			} else {
-				err = ErrNotSupportMapValue
+				err = ErrNotSupportType
 			}
 		} else {
-			err = ErrNotSupportMapValue
+			err = ErrNotSupportType
 		}
 	}
 	return
@@ -181,7 +184,7 @@ func integerConverter(targetValueField reflect.Value, dataVal interface{}, unsig
 	case int64, uint64:
 		dataValConverted = v
 	default:
-		return ErrNotSupportMapValue
+		return ErrNotSupportType
 	}
 	if isIntSeriesType(targetValueField.Kind()) {
 		if unsigned {
@@ -224,7 +227,7 @@ func floatConverter(targetValueField reflect.Value, dataVal interface{}) error {
 	case float64:
 		dataValFloat64 = v
 	default:
-		return ErrNotSupportMapValue
+		return ErrNotSupportType
 	}
 	targetValueField.SetFloat(dataValFloat64)
 	return nil
@@ -233,9 +236,52 @@ func floatConverter(targetValueField reflect.Value, dataVal interface{}) error {
 func sliceConverter(targetValueField reflect.Value, dataVal interface{}) error {
 	dataValSlice, ok := dataVal.([]byte)
 	if !ok {
-		return ErrNotSupportMapValue
+		return ErrNotSupportType
 	}
 	dataValStr := BytesToString(dataValSlice)
+	kind := targetValueField.Kind()
+	switch {
+	case kind == reflect.String:
+		targetValueField.SetString(dataValStr)
+	case isIntSeriesType(kind):
+		dataValInt, err := strconv.ParseInt(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetInt(dataValInt)
+	case isUintSeriesType(kind):
+		dataValUint, err := strconv.ParseUint(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetUint(dataValUint)
+	case isFloatSeriesType(kind):
+		dataValFloat, err := strconv.ParseFloat(dataValStr, 64)
+		if err != nil {
+			return err
+		}
+		targetValueField.SetFloat(dataValFloat)
+	case kind == reflect.Bool:
+		dataValBool, err := strconv.ParseInt(dataValStr, 10, 64)
+		if err != nil {
+			return err
+		}
+		if dataValBool > 0 {
+			targetValueField.SetBool(true)
+		} else {
+			targetValueField.SetBool(false)
+		}
+	default:
+		return ErrNotSupportStructField
+	}
+	return nil
+}
+
+func stringConverter(targetValueField reflect.Value, dataVal interface{}) error {
+	dataValStr, ok := dataVal.(string)
+	if !ok {
+		return ErrNotSupportType
+	}
 	kind := targetValueField.Kind()
 	switch {
 	case kind == reflect.String:

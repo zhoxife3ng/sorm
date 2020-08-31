@@ -164,6 +164,16 @@ func (d *Dao) GetTableName() string {
 }
 
 func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (model ModelIfe, err error) {
+	var pk = make([]interface{}, 0)
+	if len(indexValues) > 0 {
+		if len(indexValues) != len(d.indexFields) {
+			return nil, NewError(ModelRuntimeError, "indexValues num error")
+		}
+		for i, index := range indexValues {
+			data[d.indexFields[i]] = index
+			pk = append(pk, index)
+		}
+	}
 	query, params, err := builder.Insert().Table(d.GetTableName()).Values(data).Build()
 	if err != nil {
 		return nil, err
@@ -178,13 +188,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 		} else if affected != 1 {
 			return NewError(ModelRuntimeError, "dao.baseInsert error")
 		}
-		var pk = make([]interface{}, 0)
-		if len(indexValues) > 0 {
-			for i, index := range indexValues {
-				data[d.indexFields[i]] = index
-				pk = append(pk, index)
-			}
-		} else if len(d.indexFields) == 1 {
+		if len(pk) == 0 && len(d.indexFields) == 1 {
 			if id, err := result.LastInsertId(); err == nil {
 				data[d.indexFields[0]] = id
 				pk = append(pk, id)
