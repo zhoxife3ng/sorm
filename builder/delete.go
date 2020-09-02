@@ -1,28 +1,28 @@
 package builder
 
-type baseDelete struct {
+type Deleter struct {
 	table  string
 	where  *Predicate
 	params []interface{}
 }
 
-func Delete() *baseDelete {
-	return &baseDelete{}
+func Delete() *Deleter {
+	return &Deleter{}
 }
 
-func (d *baseDelete) addParams(params ...interface{}) {
+func (d *Deleter) addParams(params ...interface{}) {
 	if d.params == nil {
 		d.params = make([]interface{}, 0)
 	}
 	d.params = append(d.params, params...)
 }
 
-func (d *baseDelete) Table(table string) *baseDelete {
+func (d *Deleter) Table(table string) *Deleter {
 	d.table = table
 	return d
 }
 
-func (d *baseDelete) Where(where interface{}) *baseDelete {
+func (d *Deleter) Where(where interface{}) *Deleter {
 	var wherePredicate *Predicate
 	if where == nil {
 		return d

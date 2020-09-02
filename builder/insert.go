@@ -1,28 +1,28 @@
 package builder
 
-type baseInsert struct {
+type Inserter struct {
 	table   string
 	columns []string
 	params  [][]interface{}
 }
 
-func Insert() *baseInsert {
-	return &baseInsert{}
+func Insert() *Inserter {
+	return &Inserter{}
 }
 
-func (i *baseInsert) addParams(params ...[]interface{}) {
+func (i *Inserter) addParams(params ...[]interface{}) {
 	if i.params == nil {
 		i.params = make([][]interface{}, 0)
 	}
 	i.params = append(i.params, params...)
 }
 
-func (i *baseInsert) Table(table string) *baseInsert {
+func (i *Inserter) Table(table string) *Inserter {
 	i.table = table
 	return i
 }
 
-func (i *baseInsert) Values(values ...map[string]interface{}) *baseInsert {
+func (i *Inserter) Values(values ...map[string]interface{}) *Inserter {
 	if i.columns == nil {
 		i.columns = make([]string, 0)
 		i.params = make([][]interface{}, 0)

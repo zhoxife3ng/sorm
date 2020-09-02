@@ -32,40 +32,36 @@ func putStrBuilder(str *strings.Builder) {
 	builder.Put(str)
 }
 
-type SqlBuildIfe interface {
-	Build() (string, []interface{}, error)
+var selectSeq = []func(*Selector) (string, error){
+	(*Selector).processSelect,
+	(*Selector).processForceIndex,
+	(*Selector).processJoins,
+	(*Selector).processWhere,
+	(*Selector).processGroup,
+	(*Selector).processHaving,
+	(*Selector).processOrder,
+	(*Selector).processLimit,
+	(*Selector).processOffset,
+	(*Selector).processTail,
 }
 
-var selectSeq = []func(*baseSelect) (string, error){
-	(*baseSelect).processSelect,
-	(*baseSelect).processForceIndex,
-	(*baseSelect).processJoins,
-	(*baseSelect).processWhere,
-	(*baseSelect).processGroup,
-	(*baseSelect).processHaving,
-	(*baseSelect).processOrder,
-	(*baseSelect).processLimit,
-	(*baseSelect).processOffset,
-	(*baseSelect).processTail,
+var updateSeq = []func(*Updater) (string, error){
+	(*Updater).processUpdate,
+	(*Updater).processJoins,
+	(*Updater).processSet,
+	(*Updater).processWhere,
 }
 
-var updateSeq = []func(*baseUpdate) (string, error){
-	(*baseUpdate).processUpdate,
-	(*baseUpdate).processJoins,
-	(*baseUpdate).processSet,
-	(*baseUpdate).processWhere,
+var deleteSeq = []func(*Deleter) (string, error){
+	(*Deleter).processDelete,
+	(*Deleter).processWhere,
 }
 
-var deleteSeq = []func(*baseDelete) (string, error){
-	(*baseDelete).processDelete,
-	(*baseDelete).processWhere,
+var insertSeq = []func(*Inserter) (string, error){
+	(*Inserter).processInsert,
 }
 
-var insertSeq = []func(*baseInsert) (string, error){
-	(*baseInsert).processInsert,
-}
-
-func (s *baseSelect) Build() (string, []interface{}, error) {
+func (s *Selector) Build() (string, []interface{}, error) {
 	var sqlStr = getStrBuilder()
 	defer putStrBuilder(sqlStr)
 	for _, m := range selectSeq {
@@ -82,7 +78,7 @@ func (s *baseSelect) Build() (string, []interface{}, error) {
 	return sqlStr.String(), s.params, nil
 }
 
-func (u *baseUpdate) Build() (string, []interface{}, error) {
+func (u *Updater) Build() (string, []interface{}, error) {
 	var sqlStr = getStrBuilder()
 	defer putStrBuilder(sqlStr)
 	for _, m := range updateSeq {
@@ -98,7 +94,7 @@ func (u *baseUpdate) Build() (string, []interface{}, error) {
 	}
 	return sqlStr.String(), u.params, nil
 }
-func (d *baseDelete) Build() (string, []interface{}, error) {
+func (d *Deleter) Build() (string, []interface{}, error) {
 	var sqlStr = getStrBuilder()
 	defer putStrBuilder(sqlStr)
 	for _, m := range deleteSeq {
@@ -114,7 +110,7 @@ func (d *baseDelete) Build() (string, []interface{}, error) {
 	}
 	return sqlStr.String(), d.params, nil
 }
-func (i *baseInsert) Build() (string, []interface{}, error) {
+func (i *Inserter) Build() (string, []interface{}, error) {
 	var sqlStr = getStrBuilder()
 	defer putStrBuilder(sqlStr)
 	for _, m := range insertSeq {

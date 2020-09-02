@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func (s *baseSelect) processSelect() (string, error) {
+func (s *Selector) processSelect() (string, error) {
 	var (
 		selectQuantifier = s.quantifier
 		selectTable      = s.table
@@ -80,7 +80,7 @@ func (s *baseSelect) processSelect() (string, error) {
 	return str.String(), nil
 }
 
-func (s *baseSelect) processForceIndex() (string, error) {
+func (s *Selector) processForceIndex() (string, error) {
 	if s.forceIndex == "" {
 		return "", nil
 	}
@@ -92,7 +92,7 @@ func (s *baseSelect) processForceIndex() (string, error) {
 	return str.String(), nil
 }
 
-func (s *baseSelect) processJoins() (string, error) {
+func (s *Selector) processJoins() (string, error) {
 	join := s.join
 	if join == nil || join.count() == 0 {
 		return "", nil
@@ -112,7 +112,7 @@ func (s *baseSelect) processJoins() (string, error) {
 	return str.String(), nil
 }
 
-func (s *baseSelect) processWhere() (string, error) {
+func (s *Selector) processWhere() (string, error) {
 	selectWhere := s.where
 	if selectWhere == nil || selectWhere.count() == 0 {
 		return "", nil
@@ -138,7 +138,7 @@ func (s *baseSelect) processWhere() (string, error) {
 	return where.String(), nil
 }
 
-func (s *baseSelect) processGroup() (string, error) {
+func (s *Selector) processGroup() (string, error) {
 	selectGroup := s.group
 	if selectGroup == nil || len(selectGroup) == 0 {
 		return "", nil
@@ -155,7 +155,7 @@ func (s *baseSelect) processGroup() (string, error) {
 	return str.String(), nil
 }
 
-func (s *baseSelect) processHaving() (string, error) {
+func (s *Selector) processHaving() (string, error) {
 	having := s.having
 	if having == nil || having.count() == 0 {
 		return "", nil
@@ -181,7 +181,7 @@ func (s *baseSelect) processHaving() (string, error) {
 	return where.String(), nil
 }
 
-func (s *baseSelect) processOrder() (string, error) {
+func (s *Selector) processOrder() (string, error) {
 	selectOrder := s.order
 	if selectOrder == nil || len(selectOrder) == 0 {
 		return "", nil
@@ -211,7 +211,7 @@ func (s *baseSelect) processOrder() (string, error) {
 	return str.String(), nil
 }
 
-func (s *baseSelect) processLimit() (string, error) {
+func (s *Selector) processLimit() (string, error) {
 	limit := s.limit
 	if limit < 0 {
 		return "", nil
@@ -220,7 +220,7 @@ func (s *baseSelect) processLimit() (string, error) {
 	return "LIMIT ?", nil
 }
 
-func (s *baseSelect) processOffset() (string, error) {
+func (s *Selector) processOffset() (string, error) {
 	offset := s.offset
 	if offset < 0 {
 		return "", nil
@@ -229,11 +229,11 @@ func (s *baseSelect) processOffset() (string, error) {
 	return "OFFSET ?", nil
 }
 
-func (s *baseSelect) processTail() (string, error) {
+func (s *Selector) processTail() (string, error) {
 	return s.tail, nil
 }
 
-func (u *baseUpdate) processUpdate() (string, error) {
+func (u *Updater) processUpdate() (string, error) {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("UPDATE ")
@@ -241,7 +241,7 @@ func (u *baseUpdate) processUpdate() (string, error) {
 	return str.String(), nil
 }
 
-func (u *baseUpdate) processJoins() (string, error) {
+func (u *Updater) processJoins() (string, error) {
 	join := u.join
 	if join == nil || join.count() == 0 {
 		return "", nil
@@ -261,7 +261,7 @@ func (u *baseUpdate) processJoins() (string, error) {
 	return str.String(), nil
 }
 
-func (u *baseUpdate) processSet() (string, error) {
+func (u *Updater) processSet() (string, error) {
 	if u.set == nil || len(u.set) == 0 {
 		return "", ErrProcessSet
 	}
@@ -282,7 +282,7 @@ func (u *baseUpdate) processSet() (string, error) {
 	return str.String(), nil
 }
 
-func (u *baseUpdate) processWhere() (string, error) {
+func (u *Updater) processWhere() (string, error) {
 	if u.where == nil || u.where.count() == 0 {
 		return "", nil
 	}
@@ -307,7 +307,7 @@ func (u *baseUpdate) processWhere() (string, error) {
 	return where.String(), nil
 }
 
-func (i *baseInsert) processInsert() (string, error) {
+func (i *Inserter) processInsert() (string, error) {
 	columns := i.columns
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
@@ -332,7 +332,7 @@ func (i *baseInsert) processInsert() (string, error) {
 	return str.String(), nil
 }
 
-func (d *baseDelete) processDelete() (string, error) {
+func (d *Deleter) processDelete() (string, error) {
 	str := getStrBuilder()
 	defer putStrBuilder(str)
 	str.WriteString("DELETE FROM ")
@@ -340,7 +340,7 @@ func (d *baseDelete) processDelete() (string, error) {
 	return str.String(), nil
 }
 
-func (d *baseDelete) processWhere() (string, error) {
+func (d *Deleter) processWhere() (string, error) {
 	if d.where == nil || d.where.count() == 0 {
 		return "", nil
 	}

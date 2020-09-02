@@ -434,6 +434,22 @@ func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (
 	}
 }
 
+func (d *Dao) BuildSelect() *builder.Selector {
+	return builder.Select().Table(d.GetTableName())
+}
+
+func (d *Dao) BuildUpdate() *builder.Updater {
+	return builder.Update().Table(d.GetTableName())
+}
+
+func (d *Dao) BuildInsert() *builder.Inserter {
+	return builder.Insert().Table(d.GetTableName())
+}
+
+func (d *Dao) BuildDelete() *builder.Deleter {
+	return builder.Delete().Table(d.GetTableName())
+}
+
 func (d *Dao) ResolveChan(modelCh <-chan ModelIfe, errCh <-chan error, f func(model ModelIfe) error) error {
 	breakLoop := false
 	for !breakLoop {

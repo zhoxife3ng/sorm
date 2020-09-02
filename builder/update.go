@@ -1,6 +1,6 @@
 package builder
 
-type baseUpdate struct {
+type Updater struct {
 	table  string
 	set    []string
 	where  *Predicate
@@ -10,26 +10,26 @@ type baseUpdate struct {
 	params []interface{}
 }
 
-func Update() *baseUpdate {
-	return &baseUpdate{
+func Update() *Updater {
+	return &Updater{
 		limit:  -1,
 		offset: -1,
 	}
 }
 
-func (u *baseUpdate) addParams(params ...interface{}) {
+func (u *Updater) addParams(params ...interface{}) {
 	if u.params == nil {
 		u.params = make([]interface{}, 0)
 	}
 	u.params = append(u.params, params...)
 }
 
-func (u *baseUpdate) Table(table string) *baseUpdate {
+func (u *Updater) Table(table string) *Updater {
 	u.table = table
 	return u
 }
 
-func (u *baseUpdate) Set(set map[string]interface{}) *baseUpdate {
+func (u *Updater) Set(set map[string]interface{}) *Updater {
 	if u.set == nil {
 		u.set = make([]string, 0)
 		u.params = make([]interface{}, 0)
@@ -44,7 +44,7 @@ func (u *baseUpdate) Set(set map[string]interface{}) *baseUpdate {
 	return u
 }
 
-func (u *baseUpdate) Where(where interface{}) *baseUpdate {
+func (u *Updater) Where(where interface{}) *Updater {
 	var wherePredicate *Predicate
 	if where == nil {
 		return u
@@ -64,7 +64,7 @@ func (u *baseUpdate) Where(where interface{}) *baseUpdate {
 	return u
 }
 
-func (u *baseUpdate) InnerJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) InnerJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}
@@ -72,7 +72,7 @@ func (u *baseUpdate) InnerJoin(name string, on []string, columns ...string) *bas
 	return u
 }
 
-func (u *baseUpdate) OuterJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) OuterJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}
@@ -80,7 +80,7 @@ func (u *baseUpdate) OuterJoin(name string, on []string, columns ...string) *bas
 	return u
 }
 
-func (u *baseUpdate) LeftJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) LeftJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}
@@ -88,7 +88,7 @@ func (u *baseUpdate) LeftJoin(name string, on []string, columns ...string) *base
 	return u
 }
 
-func (u *baseUpdate) RightJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) RightJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}
@@ -96,7 +96,7 @@ func (u *baseUpdate) RightJoin(name string, on []string, columns ...string) *bas
 	return u
 }
 
-func (u *baseUpdate) LeftOuterJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) LeftOuterJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}
@@ -105,7 +105,7 @@ func (u *baseUpdate) LeftOuterJoin(name string, on []string, columns ...string) 
 
 }
 
-func (u *baseUpdate) RightOuterJoin(name string, on []string, columns ...string) *baseUpdate {
+func (u *Updater) RightOuterJoin(name string, on []string, columns ...string) *Updater {
 	if u.join == nil {
 		u.join = newJoin()
 	}

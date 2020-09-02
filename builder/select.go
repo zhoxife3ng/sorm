@@ -1,6 +1,6 @@
 package builder
 
-type baseSelect struct {
+type Selector struct {
 	limit      int
 	offset     int
 	quantifier string
@@ -17,41 +17,41 @@ type baseSelect struct {
 	params     []interface{}
 }
 
-func Select() *baseSelect {
-	return &baseSelect{
+func Select() *Selector {
+	return &Selector{
 		limit:  -1,
 		offset: -1,
 	}
 }
 
-func (s *baseSelect) addParams(params ...interface{}) {
+func (s *Selector) addParams(params ...interface{}) {
 	if s.params == nil {
 		s.params = make([]interface{}, 0)
 	}
 	s.params = append(s.params, params...)
 }
 
-func (s *baseSelect) Table(table string) *baseSelect {
+func (s *Selector) Table(table string) *Selector {
 	s.table = table
 	return s
 }
 
-func (s *baseSelect) Quantifier(quantifier string) *baseSelect {
+func (s *Selector) Quantifier(quantifier string) *Selector {
 	s.quantifier = quantifier
 	return s
 }
 
-func (s *baseSelect) FuncColumns(fColumns map[string]string) *baseSelect {
+func (s *Selector) FuncColumns(fColumns map[string]string) *Selector {
 	s.fColumns = fColumns
 	return s
 }
 
-func (s *baseSelect) Columns(columns ...string) *baseSelect {
+func (s *Selector) Columns(columns ...string) *Selector {
 	s.columns = columns
 	return s
 }
 
-func (s *baseSelect) InnerJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) InnerJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -59,7 +59,7 @@ func (s *baseSelect) InnerJoin(name string, on []string, columns ...string) *bas
 	return s
 }
 
-func (s *baseSelect) OuterJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) OuterJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -67,7 +67,7 @@ func (s *baseSelect) OuterJoin(name string, on []string, columns ...string) *bas
 	return s
 }
 
-func (s *baseSelect) LeftJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) LeftJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -75,7 +75,7 @@ func (s *baseSelect) LeftJoin(name string, on []string, columns ...string) *base
 	return s
 }
 
-func (s *baseSelect) RightJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) RightJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -83,7 +83,7 @@ func (s *baseSelect) RightJoin(name string, on []string, columns ...string) *bas
 	return s
 }
 
-func (s *baseSelect) LeftOuterJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) LeftOuterJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -92,7 +92,7 @@ func (s *baseSelect) LeftOuterJoin(name string, on []string, columns ...string) 
 
 }
 
-func (s *baseSelect) RightOuterJoin(name string, on []string, columns ...string) *baseSelect {
+func (s *Selector) RightOuterJoin(name string, on []string, columns ...string) *Selector {
 	if s.join == nil {
 		s.join = newJoin()
 	}
@@ -100,7 +100,7 @@ func (s *baseSelect) RightOuterJoin(name string, on []string, columns ...string)
 	return s
 }
 
-func (s *baseSelect) Where(where interface{}) *baseSelect {
+func (s *Selector) Where(where interface{}) *Selector {
 	var wherePredicate *Predicate
 	if where == nil {
 		return s
@@ -120,12 +120,12 @@ func (s *baseSelect) Where(where interface{}) *baseSelect {
 	return s
 }
 
-func (s *baseSelect) Group(group ...string) *baseSelect {
+func (s *Selector) Group(group ...string) *Selector {
 	s.group = group
 	return s
 }
 
-func (s *baseSelect) Having(having interface{}) *baseSelect {
+func (s *Selector) Having(having interface{}) *Selector {
 	var havingPredicate *Predicate
 	if w, ok := having.(*clause); ok {
 		havingPredicate = w.predicate
@@ -140,31 +140,31 @@ func (s *baseSelect) Having(having interface{}) *baseSelect {
 	return s
 }
 
-func (s *baseSelect) Order(order ...string) *baseSelect {
+func (s *Selector) Order(order ...string) *Selector {
 	s.order = order
 	return s
 }
 
-func (s *baseSelect) Limit(limit int) *baseSelect {
+func (s *Selector) Limit(limit int) *Selector {
 	if limit >= 0 {
 		s.limit = limit
 	}
 	return s
 }
 
-func (s *baseSelect) Offset(offset int) *baseSelect {
+func (s *Selector) Offset(offset int) *Selector {
 	if offset >= 0 {
 		s.offset = offset
 	}
 	return s
 }
 
-func (s *baseSelect) ForceIndex(index string) *baseSelect {
+func (s *Selector) ForceIndex(index string) *Selector {
 	s.forceIndex = index
 	return s
 }
 
-func (s *baseSelect) Tail(tail string) *baseSelect {
+func (s *Selector) Tail(tail string) *Selector {
 	s.tail = tail
 	return s
 }
