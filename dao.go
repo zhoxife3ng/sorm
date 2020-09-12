@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/x554462/sorm/builder"
-	"github.com/x554462/sorm/db"
-	"github.com/x554462/sorm/internal"
+	"github.com/xkisas/sorm/builder"
+	"github.com/xkisas/sorm/db"
+	"github.com/xkisas/sorm/internal"
 	"reflect"
 )
 

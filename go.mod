@@ -1,4 +1,4 @@
-module github.com/x554462/sorm
+module github.com/xkisas/sorm
 
 go 1.13
 

@@ -2,8 +2,8 @@ package _type
 
 import (
 	"database/sql"
-	"github.com/x554462/sorm"
-	"github.com/x554462/sorm/internal"
+	"github.com/xkisas/sorm"
+	"github.com/xkisas/sorm/internal"
 )
 
 type Map struct {

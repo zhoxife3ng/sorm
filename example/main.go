@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/x554462/sorm"
-	"github.com/x554462/sorm/db"
-	_type "github.com/x554462/sorm/type"
+	"github.com/xkisas/sorm"
+	"github.com/xkisas/sorm/db"
+	_type "github.com/xkisas/sorm/type"
 	"time"
 )
 

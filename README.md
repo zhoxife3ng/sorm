@@ -24,7 +24,7 @@
 
 ## 安装
 
-	go get github.com/x554462/sorm
+	go get github.com/xkisas/sorm
 	
 # 快速开始
 

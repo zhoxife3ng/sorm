@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/x554462/sorm/db"
+	"github.com/xkisas/sorm/db"
 	"log"
 	"reflect"
 	"sync"

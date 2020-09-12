@@ -1,7 +1,7 @@
 package sorm
 
 import (
-	"github.com/x554462/sorm/internal"
+	"github.com/xkisas/sorm/internal"
 	"reflect"
 	"strings"
 	"sync"

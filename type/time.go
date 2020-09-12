@@ -2,7 +2,7 @@ package _type
 
 import (
 	"database/sql"
-	"github.com/x554462/sorm"
+	"github.com/xkisas/sorm"
 	"time"
 )
 
