@@ -6,8 +6,9 @@ import (
 )
 
 type Int struct {
-	t     sql.NullInt64
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullInt64
+	model  sorm.ModelIfe
 }
 
 func (i *Int) MustValue() int {
@@ -19,7 +20,7 @@ func (i *Int) MustValue() int {
 }
 
 func (i *Int) Value() (int, error) {
-	if i.model != nil && !i.model.Loaded() {
+	if !i.loaded && i.model != nil && !i.model.Loaded() {
 		if _, err := i.model.Load(); err != nil {
 			return 0, err
 		}
@@ -42,9 +43,11 @@ func (i *Int) IsZero() (bool, error) {
 func (i *Int) Set(it int) {
 	i.t.Int64 = int64(it)
 	i.t.Valid = true
+	i.loaded = true
 }
 
 func (i *Int) Scan(value interface{}) error {
+	i.loaded = true
 	return i.t.Scan(value)
 }
 

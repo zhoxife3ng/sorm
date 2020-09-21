@@ -6,8 +6,9 @@ import (
 )
 
 type Float struct {
-	t     sql.NullFloat64
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullFloat64
+	model  sorm.ModelIfe
 }
 
 func (f *Float) MustValue() float64 {
@@ -19,7 +20,7 @@ func (f *Float) MustValue() float64 {
 }
 
 func (f *Float) Value() (float64, error) {
-	if f.model != nil && !f.model.Loaded() {
+	if !f.loaded && f.model != nil && !f.model.Loaded() {
 		if _, err := f.model.Load(); err != nil {
 			return 0, err
 		}
@@ -42,9 +43,11 @@ func (f *Float) IsZero() (bool, error) {
 func (f *Float) Set(ft float64) {
 	f.t.Float64 = ft
 	f.t.Valid = true
+	f.loaded = true
 }
 
 func (f *Float) Scan(value interface{}) error {
+	f.loaded = true
 	return f.t.Scan(value)
 }
 

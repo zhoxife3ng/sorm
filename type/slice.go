@@ -7,8 +7,9 @@ import (
 )
 
 type Slice struct {
-	t     sql.NullString
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullString
+	model  sorm.ModelIfe
 }
 
 func (s *Slice) MustValue() []interface{} {
@@ -20,7 +21,7 @@ func (s *Slice) MustValue() []interface{} {
 }
 
 func (s *Slice) Value() ([]interface{}, error) {
-	if s.model != nil && !s.model.Loaded() {
+	if !s.loaded && s.model != nil && !s.model.Loaded() {
 		if _, err := s.model.Load(); err != nil {
 			return nil, err
 		}
@@ -49,9 +50,11 @@ func (s *Slice) Set(sl map[string]interface{}) {
 	b, _ := internal.JsonMarshal(sl)
 	s.t.String = internal.BytesToString(b)
 	s.t.Valid = true
+	s.loaded = true
 }
 
 func (s *Slice) Scan(value interface{}) error {
+	s.loaded = true
 	return s.t.Scan(value)
 }
 

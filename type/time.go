@@ -7,8 +7,9 @@ import (
 )
 
 type Time struct {
-	t     sql.NullTime
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullTime
+	model  sorm.ModelIfe
 }
 
 func (t *Time) MustValue() time.Time {
@@ -20,7 +21,7 @@ func (t *Time) MustValue() time.Time {
 }
 
 func (t *Time) Value() (time.Time, error) {
-	if t.model != nil && !t.model.Loaded() {
+	if !t.loaded && t.model != nil && !t.model.Loaded() {
 		if _, err := t.model.Load(); err != nil {
 			return time.Time{}, err
 		}
@@ -43,9 +44,11 @@ func (t *Time) IsZero() (bool, error) {
 func (t *Time) Set(tm time.Time) {
 	t.t.Time = tm
 	t.t.Valid = true
+	t.loaded = true
 }
 
 func (t *Time) Scan(value interface{}) error {
+	t.loaded = true
 	return t.t.Scan(value)
 }
 

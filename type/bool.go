@@ -6,8 +6,9 @@ import (
 )
 
 type Bool struct {
-	t     sql.NullBool
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullBool
+	model  sorm.ModelIfe
 }
 
 func (b *Bool) MustValue() bool {
@@ -19,17 +20,12 @@ func (b *Bool) MustValue() bool {
 }
 
 func (b *Bool) Value() (bool, error) {
-	if b.model != nil && !b.model.Loaded() {
+	if !b.loaded && b.model != nil && !b.model.Loaded() {
 		if _, err := b.model.Load(); err != nil {
 			return false, err
 		}
 	}
 	return b.t.Bool, nil
-}
-
-func (b *Bool) Set(bl bool) {
-	b.t.Bool = bl
-	b.t.Valid = true
 }
 
 func (b *Bool) MustIsZero() bool {
@@ -44,7 +40,14 @@ func (b *Bool) IsZero() (bool, error) {
 	return !b.t.Valid, nil
 }
 
+func (b *Bool) Set(bl bool) {
+	b.t.Bool = bl
+	b.t.Valid = true
+	b.loaded = true
+}
+
 func (b *Bool) Scan(value interface{}) error {
+	b.loaded = true
 	return b.t.Scan(value)
 }
 

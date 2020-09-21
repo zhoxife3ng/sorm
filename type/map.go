@@ -7,8 +7,9 @@ import (
 )
 
 type Map struct {
-	t     sql.NullString
-	model sorm.ModelIfe
+	loaded bool
+	t      sql.NullString
+	model  sorm.ModelIfe
 }
 
 func (m *Map) MustValue() map[string]interface{} {
@@ -20,7 +21,7 @@ func (m *Map) MustValue() map[string]interface{} {
 }
 
 func (m *Map) Value() (map[string]interface{}, error) {
-	if m.model != nil && !m.model.Loaded() {
+	if !m.loaded && m.model != nil && !m.model.Loaded() {
 		if _, err := m.model.Load(); err != nil {
 			return nil, err
 		}
@@ -49,9 +50,11 @@ func (m *Map) Set(mp map[string]interface{}) {
 	b, _ := internal.JsonMarshal(mp)
 	m.t.String = internal.BytesToString(b)
 	m.t.Valid = true
+	m.loaded = true
 }
 
 func (m *Map) Scan(value interface{}) error {
+	m.loaded = true
 	return m.t.Scan(value)
 }
 
