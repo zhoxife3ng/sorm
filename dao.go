@@ -73,7 +73,7 @@ func (d *Dao) buildWhere(indexes ...interface{}) (map[string]interface{}, error)
 }
 
 func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}, bool) {
-	indexValues := make([]interface{}, 0)
+	indexValues := make([]interface{}, 0, len(d.indexFields))
 	for _, v := range d.indexFields {
 		if iv, ok := data[v]; ok {
 			indexValues = append(indexValues, iv)
@@ -100,6 +100,9 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 		indexValuesCopy = make([]interface{}, len(indexValues))
 		copy(indexValuesCopy, indexValues)
 	}
+
+	d.locker.Lock()
+	defer d.locker.Unlock()
 	if model, err = d.QueryCache(indexValuesCopy...); err == nil && model != nil && !loaded {
 		return model, nil
 	}
@@ -107,9 +110,6 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 		vc := reflect.New(d.modelType)
 		model = vc.Interface().(ModelIfe)
 	}
-
-	d.locker.Lock()
-	defer d.locker.Unlock()
 
 	if err = internal.ScanStruct(data, model, defaultTagName, true); err != nil {
 		return nil, err
