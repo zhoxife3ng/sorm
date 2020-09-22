@@ -2,6 +2,7 @@ package _type
 
 import (
 	"database/sql"
+
 	"github.com/xkisas/sorm"
 )
 

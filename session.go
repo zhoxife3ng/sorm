@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/xkisas/sorm/db"
 	"log"
 	"reflect"
 	"sync"
+
+	"github.com/xkisas/sorm/db"
 )
 
 const daoModelLruCacheSize = 200

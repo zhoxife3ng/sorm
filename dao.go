@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
+	"sync"
+
 	"github.com/xkisas/sorm/builder"
 	"github.com/xkisas/sorm/db"
 	"github.com/xkisas/sorm/internal"
-	"reflect"
-	"sync"
 )
 
 const defaultTagName = "db"

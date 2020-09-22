@@ -1,10 +1,11 @@
 package sorm
 
 import (
-	"github.com/xkisas/sorm/internal"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/xkisas/sorm/internal"
 )
 
 type ModelIfe interface {

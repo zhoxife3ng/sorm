@@ -2,8 +2,9 @@ package _type
 
 import (
 	"database/sql"
-	"github.com/xkisas/sorm"
 	"time"
+
+	"github.com/xkisas/sorm"
 )
 
 type Time struct {
