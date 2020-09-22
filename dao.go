@@ -427,7 +427,7 @@ func (d *Dao) ExecWithSql(query string, params []interface{}) (sql.Result, error
 func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error) {
 	option := fetchOption(opts...)
 	replicaInstance := db.GetReplicaInstance()
-	if option.forceMaster {
+	if option.forceMaster || replicaInstance == nil {
 		return d.Session().Query(query, params...)
 	} else {
 		return replicaInstance.QueryContext(d.Session().ctx, query, params...)
