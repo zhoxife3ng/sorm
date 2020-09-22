@@ -256,17 +256,7 @@ func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (ModelIfe,
 }
 
 func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Option) (ModelIfe, error) {
-	var (
-		row    *sql.Rows
-		err    error
-		option = fetchOption(opts...)
-	)
-	replicaInstance := db.GetReplicaInstance()
-	if option.forceMaster || replicaInstance == nil {
-		row, err = d.Session().Query(query, params...)
-	} else {
-		row, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
-	}
+	row, err := d.QueryWithSql(query, params, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -288,17 +278,7 @@ func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]Model
 }
 
 func (d *Dao) SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]ModelIfe, error) {
-	var (
-		rows   *sql.Rows
-		err    error
-		option = fetchOption(opts...)
-	)
-	replicaInstance := db.GetReplicaInstance()
-	if option.forceMaster || replicaInstance == nil {
-		rows, err = d.Session().Query(query, params...)
-	} else {
-		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
-	}
+	rows, err := d.QueryWithSql(query, params, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -313,17 +293,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 	go func(d *Dao, modelCh chan<- ModelIfe, errCh chan<- error) {
 		defer close(modelCh)
 		defer close(errCh)
-		var (
-			rows   *sql.Rows
-			err    error
-			option = fetchOption(opts...)
-		)
-		replicaInstance := db.GetReplicaInstance()
-		if option.forceMaster || replicaInstance == nil {
-			rows, err = d.Session().Query(query, params...)
-		} else {
-			rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
-		}
+		rows, err := d.QueryWithSql(query, params, opts...)
 		if err != nil {
 			errCh <- err
 			return
@@ -367,16 +337,7 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 	if err != nil {
 		return 0, err
 	}
-	var (
-		rows   *sql.Rows
-		option = fetchOption(opts...)
-	)
-	replicaInstance := db.GetReplicaInstance()
-	if option.forceMaster || replicaInstance == nil {
-		rows, err = d.Session().Query(query, params...)
-	} else {
-		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
-	}
+	rows, err := d.QueryWithSql(query, params, opts...)
 	if err != nil {
 		return 0, err
 	}
@@ -397,16 +358,7 @@ func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option
 	if err != nil {
 		return 0, err
 	}
-	var (
-		rows   *sql.Rows
-		option = fetchOption(opts...)
-	)
-	replicaInstance := db.GetReplicaInstance()
-	if option.forceMaster || replicaInstance == nil {
-		rows, err = d.Session().Query(query, params...)
-	} else {
-		rows, err = replicaInstance.QueryContext(d.Session().ctx, query, params...)
-	}
+	rows, err := d.QueryWithSql(query, params, opts...)
 	if err != nil {
 		return 0, err
 	}
