@@ -12,20 +12,19 @@ import (
 
 const daoModelLruCacheSize = 200
 
+type Session struct {
+	tx            *sql.Tx
+	txLocker      sync.RWMutex
+	daoMap        map[string]DaoIfe
+	daoMapLocker  sync.RWMutex
+	daoModelCache *modelLruCache
+	ctx           context.Context
+}
+
 var sessionPool = sync.Pool{
 	New: func() interface{} {
 		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize), daoMap: make(map[string]DaoIfe)}
 	},
-}
-
-type Session struct {
-	daoLocker     sync.RWMutex
-	txLocker      sync.Mutex
-	serialLocker  sync.Mutex
-	tx            *sql.Tx
-	daoMap        map[string]DaoIfe
-	daoModelCache *modelLruCache
-	ctx           context.Context
 }
 
 func NewSession(ctx context.Context) *Session {
@@ -38,15 +37,15 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 	t := reflect.Indirect(reflect.ValueOf(model)).Type()
 	name := t.Name()
 
-	s.daoLocker.RLock()
+	s.daoMapLocker.RLock()
 	if value, ok := s.daoMap[name]; ok {
-		s.daoLocker.RUnlock()
+		s.daoMapLocker.RUnlock()
 		return value
 	}
-	s.daoLocker.RUnlock()
+	s.daoMapLocker.RUnlock()
 
-	s.daoLocker.Lock()
-	defer s.daoLocker.Unlock()
+	s.daoMapLocker.Lock()
+	defer s.daoMapLocker.Unlock()
 	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
@@ -58,54 +57,49 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 }
 
 func (s *Session) BeginTransaction() {
-	s.serialRun(func() {
-		if s.tx != nil {
-			log.Printf("session.BeginTransaction: can not begin tx again")
-		} else {
-			var err error
-			if s.tx, err = db.GetInstance().Begin(); err != nil {
-				log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
-			}
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
+
+	if s.tx != nil {
+		log.Printf("session.BeginTransaction: can not begin tx again")
+	} else {
+		var err error
+		if s.tx, err = db.GetInstance().Begin(); err != nil {
+			log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
 		}
-	})
+	}
 }
 
 func (s *Session) RollbackTransaction() {
-	s.serialRun(func() {
-		if s.tx != nil {
-			if err := s.tx.Rollback(); err != nil {
-				log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
-			}
-			s.tx = nil
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
+	if s.tx != nil {
+		if err := s.tx.Rollback(); err != nil {
+			log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
 		}
-	})
+		s.tx = nil
+	}
 }
 
 func (s *Session) SubmitTransaction() {
-	s.serialRun(func() {
-		if s.tx != nil {
-			if err := s.tx.Commit(); err != nil {
-				log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
-			}
-			s.tx = nil
+	s.txLocker.Lock()
+	defer s.txLocker.Unlock()
+	if s.tx != nil {
+		if err := s.tx.Commit(); err != nil {
+			log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
 		}
-	})
+		s.tx = nil
+	}
 }
 
-func (s *Session) InTransaction() (b bool) {
-	s.serialRun(func() {
-		b = s.tx != nil
-	})
-	return
+func (s *Session) InTransaction() bool {
+	s.txLocker.RLock()
+	defer s.txLocker.RUnlock()
+	return s.tx != nil
 }
 
 func (s *Session) Close() {
-	s.serialRun(func() {
-		if s.tx != nil {
-			s.RollbackTransaction()
-			s.tx = nil
-		}
-	})
+	s.RollbackTransaction()
 	s.daoMap = make(map[string]DaoIfe)
 	s.daoModelCache.Clear()
 	s.ctx = nil
@@ -121,24 +115,24 @@ func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, er
 }
 
 func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err error) {
-	s.serialRun(func() {
-		if s.tx != nil {
-			rows, err = s.tx.QueryContext(s.ctx, query, args...)
-		} else {
-			rows, err = db.GetInstance().QueryContext(s.ctx, query, args...)
-		}
-	})
+	s.txLocker.RLock()
+	defer s.txLocker.RUnlock()
+	if s.tx != nil {
+		rows, err = s.tx.QueryContext(s.ctx, query, args...)
+	} else {
+		rows, err = db.GetInstance().QueryContext(s.ctx, query, args...)
+	}
 	return
 }
 
 func (s *Session) Exec(query string, args ...interface{}) (result sql.Result, err error) {
-	s.serialRun(func() {
-		if s.tx != nil {
-			result, err = s.tx.ExecContext(s.ctx, query, args...)
-		} else {
-			result, err = db.GetInstance().ExecContext(s.ctx, query, args...)
-		}
-	})
+	s.txLocker.RLock()
+	defer s.txLocker.RUnlock()
+	if s.tx != nil {
+		result, err = s.tx.ExecContext(s.ctx, query, args...)
+	} else {
+		result, err = db.GetInstance().ExecContext(s.ctx, query, args...)
+	}
 	return
 }
 
@@ -147,11 +141,12 @@ func (s *Session) ClearAllCache() {
 }
 
 func (s *Session) runInTransaction(f func() error) (err error) {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.InTransaction() {
+	s.txLocker.RLock()
+	if s.tx != nil {
+		defer s.txLocker.RUnlock()
 		err = f()
 	} else {
+		s.txLocker.RUnlock()
 		s.BeginTransaction()
 		err = f()
 		if err != nil {
@@ -161,11 +156,4 @@ func (s *Session) runInTransaction(f func() error) (err error) {
 		}
 	}
 	return
-}
-
-func (s *Session) serialRun(f func()) {
-	s.serialLocker.Lock()
-	defer s.serialLocker.Unlock()
-
-	f()
 }

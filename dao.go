@@ -8,6 +8,7 @@ import (
 	"github.com/xkisas/sorm/db"
 	"github.com/xkisas/sorm/internal"
 	"reflect"
+	"sync"
 )
 
 const defaultTagName = "db"
@@ -41,6 +42,8 @@ type Dao struct {
 	notFoundError error        // 记录未找到时报错
 	session       *Session     // 绑定session
 	modelType     reflect.Type // 通过反射可用于构造model对象
+
+	locker sync.Mutex
 }
 
 var (
@@ -88,22 +91,30 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 		ok    bool
 		err   error
 	)
+	var indexValuesCopy []interface{}
 	if len(indexValues) == 0 {
-		if indexValues, ok = d.getIndexValuesFromData(data); !ok {
+		if indexValuesCopy, ok = d.getIndexValuesFromData(data); !ok {
 			return nil, NewError(ModelRuntimeError, "index values not found")
 		}
+	} else {
+		indexValuesCopy = make([]interface{}, len(indexValues))
+		copy(indexValuesCopy, indexValues)
 	}
-	if model, err = d.QueryCache(indexValues...); err == nil && model != nil && !loaded {
+	if model, err = d.QueryCache(indexValuesCopy...); err == nil && model != nil && !loaded {
 		return model, nil
 	}
 	if model == nil {
 		vc := reflect.New(d.modelType)
 		model = vc.Interface().(ModelIfe)
 	}
+
+	d.locker.Lock()
+	defer d.locker.Unlock()
+
 	if err = internal.ScanStruct(data, model, defaultTagName, true); err != nil {
 		return nil, err
 	}
-	model.initBase(d.customDao, indexValues, loaded)
+	model.initBase(d.customDao, indexValuesCopy, loaded)
 	d.SaveCache(model)
 	return model, nil
 }
@@ -210,10 +221,15 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 		if err != nil {
 			return nil, err
 		}
-		if d.Session().tx == nil {
+
+		sess := d.Session()
+		sess.txLocker.RLock()
+		defer sess.txLocker.RUnlock()
+
+		if sess.tx == nil {
 			return nil, NewError(ModelRuntimeError, "Attempt to load for update out of transaction")
 		}
-		row, err := d.Session().Query(query, params...)
+		row, err := sess.Query(query, params...)
 		if err != nil {
 			return nil, err
 		}

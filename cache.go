@@ -76,7 +76,7 @@ type modelLruCache struct {
 	list     *list.List
 	capacity int // 容量
 	used     int // 使用量
-	locker   sync.RWMutex
+	locker   sync.Mutex
 }
 
 func newDaoLru(capacity int) *modelLruCache {
@@ -89,14 +89,16 @@ func newDaoLru(capacity int) *modelLruCache {
 }
 
 func (lru *modelLruCache) Clear() {
+	lru.locker.Lock()
+	defer lru.locker.Unlock()
 	lru.elements = make(map[string]*element)
 	lru.list.Init()
 	lru.used = 0
 }
 
 func (lru *modelLruCache) Get(key string) (ModelIfe, error) {
-	lru.locker.RLock()
-	defer lru.locker.RUnlock()
+	lru.locker.Lock()
+	defer lru.locker.Unlock()
 	if lru.used > 0 {
 		if element, ok := lru.elements[key]; ok {
 			lru.list.MoveToBack(element.listElem)
