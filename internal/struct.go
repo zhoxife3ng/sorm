@@ -41,7 +41,7 @@ type TypeIfe interface {
 }
 
 // scanner
-func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName string) (err error) {
+func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName string, bindModel bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("error:[%v], stack:[%s]", r, string(debug.Stack()))
@@ -56,7 +56,7 @@ func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName 
 	targetValueSliceType := targetValueSlice.Type().Elem()
 	for i := 0; i < length; i++ {
 		targetObj := reflect.New(targetValueSliceType)
-		if err = ScanStruct(data[i], targetObj.Interface(), tagName); err != nil {
+		if err = ScanStruct(data[i], targetObj.Interface(), tagName, bindModel); err != nil {
 			return err
 		}
 		targetValueSlice = reflect.Append(targetValueSlice, targetObj.Elem())
@@ -65,7 +65,7 @@ func ScanStructSlice(data []map[string]interface{}, target interface{}, tagName 
 	return nil
 }
 
-func ScanStruct(data map[string]interface{}, target interface{}, tagName string) (err error) {
+func ScanStruct(data map[string]interface{}, target interface{}, tagName string, bindModel bool) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("error:[%v], stack:[%s]", r, string(debug.Stack()))
@@ -77,7 +77,7 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 	if targetValueType.Kind() == reflect.Ptr {
 		targetValueObj := reflect.New(targetValueType.Elem())
 		targetValueObjIfe := targetValueObj.Interface()
-		err = ScanStruct(data, targetValueObjIfe, tagName)
+		err = ScanStruct(data, targetValueObjIfe, tagName, bindModel)
 		if nil == err {
 			targetValue.Set(targetValueObj)
 		}
@@ -100,8 +100,10 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 				if targetValueField.CanSet() {
 					if scanner, ok := targetValueFieldIfe.(sql.Scanner); ok {
 						err = scanner.Scan(dataVal)
-						if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
-							typer.BindModel(target)
+						if bindModel {
+							if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
+								typer.BindModel(target)
+							}
 						}
 					} else {
 						err = scan(targetValueField, dataVal)
@@ -113,8 +115,10 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string)
 					err = newScanError(err, targetName, targetTypeField.Name, reflect.TypeOf(dataVal), targetValueField.Type())
 					return
 				}
-			} else if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
-				typer.BindModel(target)
+			} else if bindModel {
+				if typer, ok := targetValueFieldIfe.(TypeIfe); ok {
+					typer.BindModel(target)
+				}
 			}
 		}
 	}

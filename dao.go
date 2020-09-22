@@ -100,7 +100,7 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 		vc := reflect.New(d.modelType)
 		model = vc.Interface().(ModelIfe)
 	}
-	if err = internal.ScanStruct(data, model, defaultTagName); err != nil {
+	if err = internal.ScanStruct(data, model, defaultTagName, true); err != nil {
 		return nil, err
 	}
 	model.initBase(d.customDao, indexValues, loaded)
@@ -123,7 +123,7 @@ func (d *Dao) update(model ModelIfe, data map[string]interface{}) (int64, error)
 	}
 	affected, err := result.RowsAffected()
 	if affected == 1 {
-		if err = internal.ScanStruct(data, model, defaultTagName); err != nil {
+		if err = internal.ScanStruct(data, model, defaultTagName, true); err != nil {
 			return affected, err
 		}
 
@@ -383,7 +383,7 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 	var result struct {
 		C int `count:"c"`
 	}
-	err = resolveFromRows(rows, &result, "count")
+	err = ResolveFromRows(rows, &result, "count")
 	if err != nil {
 		return 0, err
 	}
@@ -413,7 +413,7 @@ func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option
 	var result struct {
 		S int `sum:"s"`
 	}
-	err = resolveFromRows(rows, &result, "sum")
+	err = ResolveFromRows(rows, &result, "sum")
 	if err != nil {
 		return 0, err
 	}
@@ -526,22 +526,22 @@ func ResolveDataFromRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return data, nil
 }
 
-func resolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
+func ResolveFromRows(rows *sql.Rows, target interface{}, tagName string) error {
 	data, err := ResolveDataFromRows(rows)
 	if err != nil {
 		return err
 	}
 	switch reflect.TypeOf(target).Elem().Kind() {
 	case reflect.Slice:
-		if len(data) == 0 {
-			return nil
+		if len(data) > 0 {
+			err = internal.ScanStructSlice(data, target, tagName, false)
 		}
-		err = internal.ScanStructSlice(data, target, tagName)
 	default:
-		if len(data) == 0 {
-			return ModelNotFoundError
+		if len(data) > 0 {
+			err = internal.ScanStruct(data[0], target, tagName, false)
+		} else {
+			err = NewError(ModelRuntimeError, "empty data")
 		}
-		err = internal.ScanStruct(data[0], target, tagName)
 	}
 	return err
 }
