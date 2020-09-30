@@ -224,8 +224,8 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 		}
 
 		sess := d.Session()
-		sess.txLocker.RLock()
-		defer sess.txLocker.RUnlock()
+		sess.txMutex.RLock()
+		defer sess.txMutex.RUnlock()
 
 		if sess.tx == nil {
 			return nil, NewError(ModelRuntimeError, "Attempt to load for update out of transaction")

@@ -3,7 +3,6 @@ package sorm
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"reflect"
 	"sync"
@@ -15,7 +14,7 @@ const daoModelLruCacheSize = 200
 
 type Session struct {
 	tx            *sql.Tx
-	txLocker      sync.RWMutex
+	txMutex       sync.RWMutex
 	daoMap        map[string]DaoIfe
 	daoMapLocker  sync.RWMutex
 	daoModelCache *modelLruCache
@@ -32,6 +31,10 @@ func NewSession(ctx context.Context) *Session {
 	sess := sessionPool.Get().(*Session)
 	sess.ctx = ctx
 	return sess
+}
+
+func (s *Session) NewSession() *Session {
+	return NewSession(s.ctx)
 }
 
 func (s *Session) GetDao(model ModelIfe) DaoIfe {
@@ -58,44 +61,26 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 }
 
 func (s *Session) BeginTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-
-	if s.tx != nil {
-		log.Printf("session.BeginTransaction: can not begin tx again")
-	} else {
-		var err error
-		if s.tx, err = db.GetInstance().Begin(); err != nil {
-			log.Printf(fmt.Sprintf("session.BeginTransaction: %s\n", err.Error()))
-		}
-	}
+	s.txMutex.Lock()
+	defer s.txMutex.Unlock()
+	s.txBegin()
 }
 
 func (s *Session) RollbackTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx != nil {
-		if err := s.tx.Rollback(); err != nil {
-			log.Printf(fmt.Sprintf("session.RollbackTransaction: %s", err.Error()))
-		}
-		s.tx = nil
-	}
+	s.txMutex.Lock()
+	defer s.txMutex.Unlock()
+	s.txRollback()
 }
 
 func (s *Session) SubmitTransaction() {
-	s.txLocker.Lock()
-	defer s.txLocker.Unlock()
-	if s.tx != nil {
-		if err := s.tx.Commit(); err != nil {
-			log.Printf(fmt.Sprintf("session.SubmitTransaction: %s", err.Error()))
-		}
-		s.tx = nil
-	}
+	s.txMutex.Lock()
+	defer s.txMutex.Unlock()
+	s.txCommit()
 }
 
 func (s *Session) InTransaction() bool {
-	s.txLocker.RLock()
-	defer s.txLocker.RUnlock()
+	s.txMutex.RLock()
+	defer s.txMutex.RUnlock()
 	return s.tx != nil
 }
 
@@ -116,8 +101,8 @@ func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, er
 }
 
 func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err error) {
-	s.txLocker.RLock()
-	defer s.txLocker.RUnlock()
+	s.txMutex.RLock()
+	defer s.txMutex.RUnlock()
 	if s.tx != nil {
 		rows, err = s.tx.QueryContext(s.ctx, query, args...)
 	} else {
@@ -127,8 +112,8 @@ func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err 
 }
 
 func (s *Session) Exec(query string, args ...interface{}) (result sql.Result, err error) {
-	s.txLocker.RLock()
-	defer s.txLocker.RUnlock()
+	s.txMutex.RLock()
+	defer s.txMutex.RUnlock()
 	if s.tx != nil {
 		result, err = s.tx.ExecContext(s.ctx, query, args...)
 	} else {
@@ -142,19 +127,47 @@ func (s *Session) ClearAllCache() {
 }
 
 func (s *Session) runInTransaction(f func() error) (err error) {
-	s.txLocker.RLock()
+	s.txMutex.RLock()
+	defer s.txMutex.RUnlock()
 	if s.tx != nil {
-		defer s.txLocker.RUnlock()
 		err = f()
 	} else {
-		s.txLocker.RUnlock()
-		s.BeginTransaction()
+		s.txBegin()
 		err = f()
 		if err != nil {
-			s.RollbackTransaction()
+			s.txRollback()
 		} else {
-			s.SubmitTransaction()
+			s.txCommit()
 		}
 	}
 	return
+}
+
+func (s *Session) txBegin() {
+	if s.tx != nil {
+		log.Printf("session.txBegin: can not begin tx again")
+	} else {
+		var err error
+		if s.tx, err = db.GetInstance().Begin(); err != nil {
+			log.Printf("session.txBegin: %s\n", err.Error())
+		}
+	}
+}
+
+func (s *Session) txRollback() {
+	if s.tx != nil {
+		if err := s.tx.Rollback(); err != nil {
+			log.Printf("session.txRollback: %s\n", err.Error())
+		}
+		s.tx = nil
+	}
+}
+
+func (s *Session) txCommit() {
+	if s.tx != nil {
+		if err := s.tx.Commit(); err != nil {
+			log.Printf("session.txCommit: %s\n", err.Error())
+		}
+		s.tx = nil
+	}
 }
