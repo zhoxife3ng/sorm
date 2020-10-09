@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"database/sql/driver"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,12 +39,19 @@ func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 		switch m := v.(type) {
 		case int, int64, uint, uint64, int32, int16, int8, uint32, uint16, uint8:
 			buildStr.WriteString(fmt.Sprintf("`%d", m))
+		case float32:
+			buildStr.WriteString("`")
+			buildStr.WriteString(strconv.FormatFloat(float64(m), 'f', -1, 64))
+		case float64:
+			buildStr.WriteString("`")
+			buildStr.WriteString(strconv.FormatFloat(m, 'f', -1, 64))
 		case string:
 			if m == "" {
 				err = NewError(ModelRuntimeError, "the index key can not be empty string")
+			} else {
+				buildStr.WriteString("`")
+				buildStr.WriteString(m)
 			}
-			buildStr.WriteString("`")
-			buildStr.WriteString(m)
 		case []byte:
 			buildStr.WriteString("`")
 			buildStr.Write(m)
@@ -51,6 +59,7 @@ func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 			if v, err = m.Value(); err == nil {
 				goto assert
 			}
+			err = NewError(ModelRuntimeError, err.Error())
 		default:
 			err = NewError(ModelRuntimeError, "not support index key")
 		}
@@ -63,7 +72,6 @@ func (d *Dao) buildKey(indexes ...interface{}) (string, error) {
 
 // 使用lru算法缓存model
 // 只在当前session有效
-const minExpireTime = time.Second
 
 type element struct {
 	listElem *list.Element
@@ -86,6 +94,14 @@ func newDaoLru(capacity int) *modelLruCache {
 		capacity: capacity,
 		used:     0,
 	}
+}
+
+func (lru *modelLruCache) resetCapacity(capacity int) {
+	lru.locker.Lock()
+	defer lru.locker.Unlock()
+
+	lru.capacity = capacity
+	lru.delListFrontElement()
 }
 
 func (lru *modelLruCache) Clear() {
@@ -113,17 +129,17 @@ func (lru *modelLruCache) Put(key string, model ModelIfe) {
 	lru.locker.Lock()
 	defer lru.locker.Unlock()
 
+	if lru.capacity < 1 {
+		return
+	}
+
 	if elem, ok := lru.elements[key]; ok {
 		lru.elements[key] = &element{listElem: elem.listElem, model: model}
 		lru.list.MoveToBack(elem.listElem)
 		return
 	}
 	lru.addElement(key, model)
-	for used := lru.used; used > lru.capacity; used-- {
-		if !lru.delListFrontElement() {
-			break
-		}
-	}
+	lru.delListFrontElement()
 }
 
 func (lru *modelLruCache) Del(key string) {
@@ -144,16 +160,14 @@ func (lru *modelLruCache) addElement(key string, model ModelIfe) {
 	lru.elements[key] = &element{listElem: listElem, model: model, time: time.Now()}
 }
 
-func (lru *modelLruCache) delListFrontElement() bool {
-	frontElem := lru.list.Front()
-	key := frontElem.Value.(string)
-	if element, ok := lru.elements[key]; ok {
-		if element.time.Add(minExpireTime).Before(time.Now()) {
+func (lru *modelLruCache) delListFrontElement() {
+	for used := lru.used; used > lru.capacity; used-- {
+		frontElem := lru.list.Front()
+		key := frontElem.Value.(string)
+		if element, ok := lru.elements[key]; ok {
 			lru.list.Remove(element.listElem)
 			delete(lru.elements, key)
 			lru.used--
-			return true
 		}
 	}
-	return false
 }

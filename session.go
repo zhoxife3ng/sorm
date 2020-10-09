@@ -10,7 +10,7 @@ import (
 	"github.com/xkisas/sorm/db"
 )
 
-const daoModelLruCacheSize = 200
+var daoModelLruCacheCapacity = 200
 
 type Session struct {
 	tx            *sql.Tx
@@ -23,8 +23,12 @@ type Session struct {
 
 var sessionPool = sync.Pool{
 	New: func() interface{} {
-		return &Session{daoModelCache: newDaoLru(daoModelLruCacheSize), daoMap: make(map[string]DaoIfe)}
+		return &Session{daoModelCache: newDaoLru(daoModelLruCacheCapacity), daoMap: make(map[string]DaoIfe)}
 	},
+}
+
+func SetCacheCapacity(capacity int) {
+	daoModelLruCacheCapacity = capacity
 }
 
 func NewSession(ctx context.Context) *Session {
@@ -35,6 +39,10 @@ func NewSession(ctx context.Context) *Session {
 
 func (s *Session) NewSession() *Session {
 	return NewSession(s.ctx)
+}
+
+func (s *Session) ResetCacheCapacity(capacity int) {
+	s.daoModelCache.resetCapacity(capacity)
 }
 
 func (s *Session) GetDao(model ModelIfe) DaoIfe {
@@ -88,6 +96,7 @@ func (s *Session) Close() {
 	s.RollbackTransaction()
 	s.daoMap = make(map[string]DaoIfe)
 	s.daoModelCache.Clear()
+	s.daoModelCache.resetCapacity(daoModelLruCacheCapacity)
 	s.ctx = nil
 	sessionPool.Put(s)
 }
@@ -145,7 +154,7 @@ func (s *Session) runInTransaction(f func() error) (err error) {
 
 func (s *Session) txBegin() {
 	if s.tx != nil {
-		log.Printf("session.txBegin: can not begin tx again")
+		log.Println("session.txBegin: can not begin tx again")
 	} else {
 		var err error
 		if s.tx, err = db.GetInstance().Begin(); err != nil {
