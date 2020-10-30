@@ -23,12 +23,12 @@ func (t *Test) GetNotFoundError() error {
 	return TestNotFoundError
 }
 
-func (t *Test) CustomDao() sorm.DaoIfe {
-	return &TestDao{}
-}
-
 func (t *Test) GetDao() *TestDao {
 	return t.GetDaoIfe().(*TestDao)
+}
+
+func init() {
+	sorm.CustomDaoMap(new(Test), new(TestDao))
 }
 
 type TestDao struct {

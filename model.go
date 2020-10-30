@@ -10,7 +10,6 @@ import (
 
 type ModelIfe interface {
 	initBase(dao DaoIfe, indexValues []interface{}, loaded bool)
-	CustomDao() DaoIfe
 	GetNotFoundError() error
 	IndexValues() []interface{}
 	GetDaoIfe() DaoIfe
@@ -27,14 +26,14 @@ type BaseModel struct {
 	indexValues []interface{}
 }
 
-func (bm *BaseModel) CustomDao() DaoIfe {
-	return &Dao{}
-}
-
 func (bm *BaseModel) initBase(dao DaoIfe, indexValues []interface{}, loaded bool) {
 	bm.dao = dao
 	bm.loaded = loaded
 	bm.indexValues = indexValues
+}
+
+func (bm *BaseModel) GetDao(model ModelIfe) DaoIfe {
+	return bm.dao.Session().GetDao(model)
 }
 
 func (bm *BaseModel) GetDaoIfe() DaoIfe {
@@ -137,4 +136,13 @@ func parseTableInfo(modelType reflect.Type) (string, []string, []string) {
 	}
 	tableInfos.Store(name, tableInfo)
 	return tableInfo.tableName, tableInfo.indexFields, tableInfo.fields
+}
+
+// custom dao map
+var customDaoMap sync.Map
+
+func CustomDaoMap(model ModelIfe, dao DaoIfe) {
+	modelT := reflect.Indirect(reflect.ValueOf(model)).Type()
+	daoT := reflect.Indirect(reflect.ValueOf(dao)).Type()
+	customDaoMap.Store(modelT.Name(), daoT)
 }

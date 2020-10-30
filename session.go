@@ -61,8 +61,13 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
+	var dao DaoIfe
+	if cd, ok := customDaoMap.Load(name); ok {
+		dao = reflect.New(cd.(reflect.Type)).Interface().(DaoIfe)
+	} else {
+		dao = new(Dao)
+	}
 	tableName, indexFields, fields := parseTableInfo(t)
-	dao := model.CustomDao()
 	dao.initDao(dao, tableName, indexFields, fields, s, t, model.GetNotFoundError())
 	s.daoMap[name] = dao
 	return dao
