@@ -106,6 +106,10 @@ func ScanStruct(data map[string]interface{}, target interface{}, tagName string,
 							}
 						}
 					} else {
+						if targetValueField.Kind() == reflect.Ptr {
+							targetValueField.Set(reflect.New(targetValueField.Type().Elem()))
+							targetValueField = targetValueField.Elem()
+						}
 						err = scan(targetValueField, dataVal)
 					}
 				} else {
@@ -214,6 +218,12 @@ func integerConverter(targetValueField reflect.Value, dataVal interface{}, unsig
 		} else {
 			targetValueField.SetString(strconv.FormatInt(dataValConverted.(int64), 10))
 		}
+	} else if targetValueField.Kind() == reflect.Float64 || targetValueField.Kind() == reflect.Float32 {
+		if unsigned {
+			targetValueField.SetFloat(float64(dataValConverted.(uint64)))
+		} else {
+			targetValueField.SetFloat(float64(dataValConverted.(int64)))
+		}
 	} else {
 		return ErrNotSupportStructField
 	}
@@ -221,9 +231,6 @@ func integerConverter(targetValueField reflect.Value, dataVal interface{}, unsig
 }
 
 func floatConverter(targetValueField reflect.Value, dataVal interface{}) error {
-	if targetValueField.Kind() != reflect.Float64 || targetValueField.Kind() != reflect.Float32 {
-		return ErrNotSupportStructField
-	}
 	var dataValFloat64 float64
 	switch v := dataVal.(type) {
 	case float32:
@@ -233,7 +240,23 @@ func floatConverter(targetValueField reflect.Value, dataVal interface{}) error {
 	default:
 		return ErrNotSupportType
 	}
-	targetValueField.SetFloat(dataValFloat64)
+	if isIntSeriesType(targetValueField.Kind()) {
+		targetValueField.SetInt(int64(dataValFloat64))
+	} else if isUintSeriesType(targetValueField.Kind()) {
+		targetValueField.SetUint(uint64(dataValFloat64))
+	} else if targetValueField.Kind() == reflect.Bool {
+		if dataValFloat64 > 0 {
+			targetValueField.SetBool(true)
+		} else {
+			targetValueField.SetBool(false)
+		}
+	} else if targetValueField.Kind() == reflect.String {
+		targetValueField.SetString(strconv.FormatFloat(dataValFloat64, 'f', 6, 64))
+	} else if targetValueField.Kind() == reflect.Float64 || targetValueField.Kind() == reflect.Float32 {
+		targetValueField.SetFloat(dataValFloat64)
+	} else {
+		return ErrNotSupportStructField
+	}
 	return nil
 }
 
