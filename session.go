@@ -19,6 +19,7 @@ type Session struct {
 	daoMapLocker  sync.RWMutex
 	daoModelCache *modelLruCache
 	ctx           context.Context
+	logSql        bool
 }
 
 var sessionPool = sync.Pool{
@@ -34,11 +35,23 @@ func SetCacheCapacity(capacity int) {
 func NewSession(ctx context.Context) *Session {
 	sess := sessionPool.Get().(*Session)
 	sess.ctx = ctx
+	sess.logSql = false
 	return sess
 }
 
 func (s *Session) NewSession() *Session {
 	return NewSession(s.ctx)
+}
+
+func (s *Session) SetLogSql(b bool) *Session {
+	s.logSql = b
+	return s
+}
+
+func (s *Session) log(prefix, query string, args []interface{}) {
+	if s.logSql {
+		log.Println(prefix, query, args)
+	}
 }
 
 func (s *Session) ResetCacheCapacity(capacity int) {
@@ -101,7 +114,7 @@ func (s *Session) Close() {
 	s.RollbackTransaction()
 	s.daoMap = make(map[string]DaoIfe)
 	s.daoModelCache.Clear()
-	s.daoModelCache.resetCapacity(daoModelLruCacheCapacity)
+	s.ResetCacheCapacity(daoModelLruCacheCapacity)
 	s.ctx = nil
 	sessionPool.Put(s)
 }
@@ -111,12 +124,14 @@ func (s *Session) QueryReplica(query string, args ...interface{}) (*sql.Rows, er
 	if replicaInstance == nil {
 		return nil, NewError(ModelRuntimeError, "replica instance is nil")
 	}
+	s.log("replica:", query, args)
 	return replicaInstance.QueryContext(s.ctx, query, args...)
 }
 
 func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err error) {
 	s.txMutex.RLock()
 	defer s.txMutex.RUnlock()
+	s.log("main:", query, args)
 	if s.tx != nil {
 		rows, err = s.tx.QueryContext(s.ctx, query, args...)
 	} else {
@@ -128,6 +143,7 @@ func (s *Session) Query(query string, args ...interface{}) (rows *sql.Rows, err 
 func (s *Session) Exec(query string, args ...interface{}) (result sql.Result, err error) {
 	s.txMutex.RLock()
 	defer s.txMutex.RUnlock()
+	s.log("main:", query, args)
 	if s.tx != nil {
 		result, err = s.tx.ExecContext(s.ctx, query, args...)
 	} else {

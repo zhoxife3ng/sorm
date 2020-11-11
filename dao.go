@@ -28,8 +28,8 @@ type DaoIfe interface {
 	SelectOneWithSql(query string, params []interface{}, opts ...Option) (ModelIfe, error)
 	SelectMulti(where map[string]interface{}, opts ...Option) ([]ModelIfe, error)
 	SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]ModelIfe, error)
-	GetCount(column string, where map[string]interface{}, opts ...Option) (int, error)
-	GetSum(column string, where map[string]interface{}, opts ...Option) (int, error)
+	GetCount(column string, where interface{}, opts ...Option) (int, error)
+	GetSum(column string, where interface{}, opts ...Option) (int, error)
 	ExecWithSql(query string, params []interface{}) (sql.Result, error)
 	QueryWithSql(query string, params []interface{}, opts ...Option) (*sql.Rows, error)
 	ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error)
@@ -347,7 +347,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 	return modelCh, errCh
 }
 
-func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Option) (int, error) {
+func (d *Dao) GetCount(column string, where interface{}, opts ...Option) (int, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
 		fmt.Sprintf("COUNT(%s)", builder.QuoteIdentifier(column)): "c",
 	}).Where(where).Build()
@@ -368,7 +368,7 @@ func (d *Dao) GetCount(column string, where map[string]interface{}, opts ...Opti
 	return result.C, nil
 }
 
-func (d *Dao) GetSum(column string, where map[string]interface{}, opts ...Option) (int, error) {
+func (d *Dao) GetSum(column string, where interface{}, opts ...Option) (int, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
 		fmt.Sprintf("SUM(%s)", builder.QuoteIdentifier(column)): "s",
 	}).Where(where).Build()
@@ -399,7 +399,7 @@ func (d *Dao) QueryWithSql(query string, params []interface{}, opts ...Option) (
 	if option.forceMaster || replicaInstance == nil {
 		return d.Session().Query(query, params...)
 	} else {
-		return replicaInstance.QueryContext(d.Session().ctx, query, params...)
+		return d.Session().QueryReplica(query, params...)
 	}
 }
 
