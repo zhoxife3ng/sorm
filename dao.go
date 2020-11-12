@@ -24,9 +24,9 @@ type DaoIfe interface {
 	Insert(data map[string]interface{}, indexValues ...interface{}) (model ModelIfe, err error)
 	Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, error)
 	SelectById(id interface{}, opts ...Option) (ModelIfe, error)
-	SelectOne(where map[string]interface{}, opts ...Option) (ModelIfe, error)
+	SelectOne(where interface{}, opts ...Option) (ModelIfe, error)
 	SelectOneWithSql(query string, params []interface{}, opts ...Option) (ModelIfe, error)
-	SelectMulti(where map[string]interface{}, opts ...Option) ([]ModelIfe, error)
+	SelectMulti(where interface{}, opts ...Option) ([]ModelIfe, error)
 	SelectMultiWithSql(query string, params []interface{}, opts ...Option) ([]ModelIfe, error)
 	GetCount(column string, where interface{}, opts ...Option) (int, error)
 	GetSum(column string, where interface{}, opts ...Option) (int, error)
@@ -264,7 +264,7 @@ func (d *Dao) SelectById(id interface{}, opts ...Option) (ModelIfe, error) {
 	return model, nil
 }
 
-func (d *Dao) SelectOne(where map[string]interface{}, opts ...Option) (ModelIfe, error) {
+func (d *Dao) SelectOne(where interface{}, opts ...Option) (ModelIfe, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err
@@ -286,7 +286,7 @@ func (d *Dao) SelectOneWithSql(query string, params []interface{}, opts ...Optio
 	return ms[0], nil
 }
 
-func (d *Dao) SelectMulti(where map[string]interface{}, opts ...Option) ([]ModelIfe, error) {
+func (d *Dao) SelectMulti(where interface{}, opts ...Option) ([]ModelIfe, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).Columns(d.fields...).Where(where).Build()
 	if err != nil {
 		return nil, err

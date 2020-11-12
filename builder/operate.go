@@ -92,7 +92,7 @@ func operate(left, operator string, right interface{}) *Expression {
 func between(identifier string, minValue, maxValue interface{}) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(identifier)
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" BETWEEN ? AND ?")
 	return NewExpression(str.String(), minValue, maxValue)
 }
@@ -100,7 +100,7 @@ func between(identifier string, minValue, maxValue interface{}) *Expression {
 func notBetween(identifier string, minValue, maxValue interface{}) *Expression {
 	var str = getStrBuilder()
 	defer putStrBuilder(str)
-	str.WriteString(identifier)
+	str.WriteString(QuoteIdentifier(identifier))
 	str.WriteString(" NOT BETWEEN ? AND ?")
 	return NewExpression(str.String(), minValue, maxValue)
 }
