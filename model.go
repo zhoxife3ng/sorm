@@ -18,6 +18,7 @@ type ModelIfe interface {
 	Update(set map[string]interface{}) (int64, error)
 	Remove() error
 	GetId() interface{}
+	InitCustomDao() DaoIfe
 }
 
 type BaseModel struct {
@@ -92,6 +93,10 @@ func (bm *BaseModel) GetId() interface{} {
 	if len(indexValues) > 0 {
 		return indexValues[0]
 	}
+	return nil
+}
+
+func (bm *BaseModel) InitCustomDao() DaoIfe {
 	return nil
 }
 

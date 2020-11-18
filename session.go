@@ -74,11 +74,13 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 	if value, ok := s.daoMap[name]; ok {
 		return value
 	}
-	var dao DaoIfe
-	if cd, ok := customDaoMap.Load(name); ok {
-		dao = reflect.New(cd.(reflect.Type)).Interface().(DaoIfe)
-	} else {
-		dao = new(Dao)
+	dao := model.InitCustomDao()
+	if dao == nil {
+		if cd, ok := customDaoMap.Load(name); ok {
+			dao = reflect.New(cd.(reflect.Type)).Interface().(DaoIfe)
+		} else {
+			dao = new(Dao)
+		}
 	}
 	tableName, indexFields, fields := parseTableInfo(t)
 	dao.initDao(dao, tableName, indexFields, fields, s, t, model.GetNotFoundError())
@@ -86,22 +88,22 @@ func (s *Session) GetDao(model ModelIfe) DaoIfe {
 	return dao
 }
 
-func (s *Session) BeginTransaction() {
+func (s *Session) BeginTransaction() error {
 	s.txMutex.Lock()
 	defer s.txMutex.Unlock()
-	s.txBegin()
+	return s.txBegin()
 }
 
-func (s *Session) RollbackTransaction() {
+func (s *Session) RollbackTransaction() error {
 	s.txMutex.Lock()
 	defer s.txMutex.Unlock()
-	s.txRollback()
+	return s.txRollback()
 }
 
-func (s *Session) SubmitTransaction() {
+func (s *Session) SubmitTransaction() error {
 	s.txMutex.Lock()
 	defer s.txMutex.Unlock()
-	s.txCommit()
+	return s.txCommit()
 }
 
 func (s *Session) InTransaction() bool {
@@ -162,42 +164,52 @@ func (s *Session) runInTransaction(f func() error) (err error) {
 	if s.tx != nil {
 		err = f()
 	} else {
-		s.txBegin()
-		err = f()
-		if err != nil {
-			s.txRollback()
-		} else {
-			s.txCommit()
+		err = s.txBegin()
+		if err == nil {
+			err = f()
+			if err != nil {
+				if err := s.txRollback(); err != nil {
+					return err
+				}
+			} else {
+				err = s.txCommit()
+			}
 		}
 	}
 	return
 }
 
-func (s *Session) txBegin() {
+func (s *Session) txBegin() error {
 	if s.tx != nil {
 		log.Println("session.txBegin: can not begin tx again")
 	} else {
 		var err error
 		if s.tx, err = db.GetInstance().Begin(); err != nil {
 			log.Printf("session.txBegin: %s\n", err.Error())
+			return err
 		}
 	}
+	return nil
 }
 
-func (s *Session) txRollback() {
+func (s *Session) txRollback() error {
 	if s.tx != nil {
 		if err := s.tx.Rollback(); err != nil {
 			log.Printf("session.txRollback: %s\n", err.Error())
+			return err
 		}
 		s.tx = nil
 	}
+	return nil
 }
 
-func (s *Session) txCommit() {
+func (s *Session) txCommit() error {
 	if s.tx != nil {
 		if err := s.tx.Commit(); err != nil {
 			log.Printf("session.txCommit: %s\n", err.Error())
+			return err
 		}
 		s.tx = nil
 	}
+	return nil
 }
