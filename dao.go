@@ -212,6 +212,29 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 	return
 }
 
+func (d *Dao) Upsert(data map[string]interface{}, indexValues ...interface{}) (model ModelIfe, err error) {
+	var pk = make([]interface{}, 0)
+	if len(indexValues) > 0 {
+		if len(indexValues) != len(d.indexFields) {
+			return nil, NewError(ModelRuntimeError, "indexValues num error")
+		}
+		for i, index := range indexValues {
+			data[d.indexFields[i]] = index
+			pk = append(pk, index)
+		}
+	}
+	err = d.Session().runInTransaction(func() error {
+		model, err = d.Select(true, pk...)
+		if err == d.notFoundError {
+			model, err = d.Insert(data, indexValues...)
+		} else if err == nil {
+			_, err = model.Update(data)
+		}
+		return err
+	})
+	return
+}
+
 func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, error) {
 	if forUpdate {
 		where, err := d.buildWhere(indexValues...)
@@ -349,7 +372,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 
 func (d *Dao) GetCount(column string, where interface{}, opts ...Option) (int, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
-		fmt.Sprintf("COUNT(%s)", builder.QuoteIdentifier(column)): "c",
+		"c": fmt.Sprintf("COUNT(%s)", builder.QuoteIdentifier(column)),
 	}).Where(where).Build()
 	if err != nil {
 		return 0, err
@@ -370,7 +393,7 @@ func (d *Dao) GetCount(column string, where interface{}, opts ...Option) (int, e
 
 func (d *Dao) GetSum(column string, where interface{}, opts ...Option) (int, error) {
 	query, params, err := builder.Select().Table(d.GetTableName()).FuncColumns(map[string]string{
-		fmt.Sprintf("SUM(%s)", builder.QuoteIdentifier(column)): "s",
+		"s": fmt.Sprintf("SUM(%s)", builder.QuoteIdentifier(column)),
 	}).Where(where).Build()
 	if err != nil {
 		return 0, err

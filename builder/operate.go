@@ -115,7 +115,7 @@ func exists(specification string, values ...interface{}) *Expression {
 	str.WriteString("EXISTS(")
 	str.WriteString(specification)
 	str.WriteString(")")
-	return NewExpression(specification, values...)
+	return NewExpression(str.String(), values...)
 }
 
 func notExists(specification string, values ...interface{}) *Expression {
@@ -128,7 +128,7 @@ func notExists(specification string, values ...interface{}) *Expression {
 	str.WriteString("NOT EXISTS(")
 	str.WriteString(specification)
 	str.WriteString(")")
-	return NewExpression(specification, values...)
+	return NewExpression(str.String(), values...)
 }
 
 func in(identifier string, values ...interface{}) *Expression {

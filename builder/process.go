@@ -57,7 +57,7 @@ func (s *Selector) processSelect() (string, error) {
 	}
 
 	// func column
-	for fColumns, alias := range s.fColumns {
+	for alias, fColumns := range s.fColumns {
 		if columnStr.Len() > 0 {
 			columnStr.WriteString(", ")
 		}
