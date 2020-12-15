@@ -35,12 +35,12 @@ func (m *Map) Value() (map[string]interface{}, error) {
 	return data, err
 }
 
-func (m *Map) MustIsZero() bool {
+func (m *Map) MustIsNull() bool {
 	m.MustValue()
 	return !m.t.Valid
 }
 
-func (m *Map) IsZero() (bool, error) {
+func (m *Map) IsNull() (bool, error) {
 	if _, err := m.Value(); err != nil {
 		return false, err
 	}

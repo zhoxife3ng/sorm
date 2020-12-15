@@ -86,7 +86,7 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 }
 
 // 创建model对象
-func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ...interface{}) (ModelIfe, error) {
+func (d *Dao) CreateObj(data map[string]interface{}, indexValues ...interface{}) (ModelIfe, error) {
 	var (
 		model ModelIfe
 		ok    bool
@@ -99,12 +99,17 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 		}
 	} else {
 		indexValuesCopy = make([]interface{}, len(indexValues))
+		for index, indexName := range d.indexFields {
+			data[indexName] = indexValues[index]
+		}
 		copy(indexValuesCopy, indexValues)
 	}
 
 	d.locker.Lock()
 	defer d.locker.Unlock()
-	if model, err = d.QueryCache(indexValuesCopy...); err == nil && model != nil && !loaded {
+
+	dataLen := len(data)
+	if model, err = d.QueryCache(indexValuesCopy...); err == nil && model != nil && dataLen == len(d.indexFields) {
 		return model, nil
 	}
 	if model == nil {
@@ -115,7 +120,7 @@ func (d *Dao) CreateObj(data map[string]interface{}, loaded bool, indexValues ..
 	if err = internal.ScanStruct(data, model, defaultTagName, true); err != nil {
 		return nil, err
 	}
-	model.initBase(d.customDao, indexValuesCopy, loaded)
+	model.initBase(d.customDao, indexValuesCopy, dataLen == len(d.fields))
 	d.SaveCache(model)
 	return model, nil
 }
@@ -206,7 +211,7 @@ func (d *Dao) Insert(data map[string]interface{}, indexValues ...interface{}) (m
 				pk = append(pk, id)
 			}
 		}
-		model, err = d.CreateObj(data, false, pk...)
+		model, err = d.CreateObj(data, pk...)
 		return err
 	})
 	return
@@ -272,7 +277,7 @@ func (d *Dao) Select(forUpdate bool, indexValues ...interface{}) (ModelIfe, erro
 	if err != nil {
 		return nil, err
 	}
-	return d.CreateObj(where, false)
+	return d.CreateObj(where)
 }
 
 func (d *Dao) SelectById(id interface{}, opts ...Option) (ModelIfe, error) {
@@ -359,7 +364,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 			for idx, name := range columns {
 				mp[name] = *(values[idx].(*interface{}))
 			}
-			if m, err := d.CreateObj(mp, true); err == nil {
+			if m, err := d.CreateObj(mp); err == nil {
 				modelCh <- m
 			} else {
 				errCh <- err
@@ -483,7 +488,7 @@ func (d *Dao) ResolveModelFromRows(rows *sql.Rows) ([]ModelIfe, error) {
 		for idx, name := range columns {
 			mp[name] = *(values[idx].(*interface{}))
 		}
-		if m, err := d.CreateObj(mp, true); err == nil {
+		if m, err := d.CreateObj(mp); err == nil {
 			data = append(data, m)
 		} else {
 			return nil, err

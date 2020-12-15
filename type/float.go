@@ -29,12 +29,12 @@ func (f *Float) Value() (float64, error) {
 	return f.t.Float64, nil
 }
 
-func (f *Float) MustIsZero() bool {
+func (f *Float) MustIsNull() bool {
 	f.MustValue()
 	return !f.t.Valid
 }
 
-func (f *Float) IsZero() (bool, error) {
+func (f *Float) IsNull() (bool, error) {
 	if _, err := f.Value(); err != nil {
 		return false, err
 	}

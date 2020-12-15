@@ -29,12 +29,12 @@ func (b *Bool) Value() (bool, error) {
 	return b.t.Bool, nil
 }
 
-func (b *Bool) MustIsZero() bool {
+func (b *Bool) MustIsNull() bool {
 	b.MustValue()
 	return !b.t.Valid
 }
 
-func (b *Bool) IsZero() (bool, error) {
+func (b *Bool) IsNull() (bool, error) {
 	if _, err := b.Value(); err != nil {
 		return false, err
 	}

@@ -29,12 +29,12 @@ func (s *String) Value() (string, error) {
 	return s.t.String, nil
 }
 
-func (s *String) MustIsZero() bool {
+func (s *String) MustIsNull() bool {
 	s.MustValue()
 	return !s.t.Valid
 }
 
-func (s *String) IsZero() (bool, error) {
+func (s *String) IsNull() (bool, error) {
 	if _, err := s.Value(); err != nil {
 		return false, err
 	}

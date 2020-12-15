@@ -30,12 +30,12 @@ func (t *Time) Value() (time.Time, error) {
 	return t.t.Time, nil
 }
 
-func (t *Time) MustIsZero() bool {
+func (t *Time) MustIsNull() bool {
 	t.MustValue()
 	return !t.t.Valid
 }
 
-func (t *Time) IsZero() (bool, error) {
+func (t *Time) IsNull() (bool, error) {
 	if _, err := t.Value(); err != nil {
 		return false, err
 	}

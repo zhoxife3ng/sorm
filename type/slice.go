@@ -35,12 +35,12 @@ func (s *Slice) Value() ([]interface{}, error) {
 	return data, err
 }
 
-func (s *Slice) MustIsZero() bool {
+func (s *Slice) MustIsNull() bool {
 	s.MustValue()
 	return !s.t.Valid
 }
 
-func (s *Slice) IsZero() (bool, error) {
+func (s *Slice) IsNull() (bool, error) {
 	if _, err := s.Value(); err != nil {
 		return false, err
 	}
