@@ -24,7 +24,7 @@ type Session struct {
 
 var sessionPool = sync.Pool{
 	New: func() interface{} {
-		return &Session{daoModelCache: newDaoLru(daoModelLruCacheCapacity), daoMap: make(map[string]DaoIfe)}
+		return &Session{daoModelCache: newDaoLru(daoModelLruCacheCapacity)}
 	},
 }
 
@@ -36,6 +36,7 @@ func NewSession(ctx context.Context) *Session {
 	sess := sessionPool.Get().(*Session)
 	sess.ctx = ctx
 	sess.logSql = false
+	sess.daoMap = make(map[string]DaoIfe)
 	return sess
 }
 
@@ -113,11 +114,12 @@ func (s *Session) InTransaction() bool {
 }
 
 func (s *Session) Close() {
+	s.daoMapLocker.Lock()
+	defer s.daoMapLocker.Unlock()
+
 	s.RollbackTransaction()
-	s.daoMap = make(map[string]DaoIfe)
+	s.daoMap = nil
 	s.daoModelCache.Clear()
-	s.ResetCacheCapacity(daoModelLruCacheCapacity)
-	s.ctx = nil
 	sessionPool.Put(s)
 }
 

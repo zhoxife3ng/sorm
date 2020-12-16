@@ -77,7 +77,11 @@ func (d *Dao) getIndexValuesFromData(data map[string]interface{}) ([]interface{}
 	indexValues := make([]interface{}, 0, len(d.indexFields))
 	for _, v := range d.indexFields {
 		if iv, ok := data[v]; ok {
-			indexValues = append(indexValues, iv)
+			if ivb, ok := iv.([]byte); ok {
+				indexValues = append(indexValues, internal.BytesToString(ivb))
+			} else {
+				indexValues = append(indexValues, iv)
+			}
 		} else {
 			return nil, false
 		}
@@ -335,7 +339,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 		modelCh = make(chan ModelIfe, 0)
 		errCh   = make(chan error, 0)
 	)
-	go func(d *Dao, modelCh chan<- ModelIfe, errCh chan<- error) {
+	go func(modelCh chan<- ModelIfe, errCh chan<- error) {
 		defer close(modelCh)
 		defer close(errCh)
 		rows, err := d.QueryWithSql(query, params, opts...)
@@ -371,7 +375,7 @@ func (d *Dao) SelectChan(query string, params []interface{}, opts ...Option) (<-
 				return
 			}
 		}
-	}(d, modelCh, errCh)
+	}(modelCh, errCh)
 	return modelCh, errCh
 }
 

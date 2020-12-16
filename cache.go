@@ -110,6 +110,7 @@ func (lru *modelLruCache) Clear() {
 	lru.elements = make(map[string]*element)
 	lru.list.Init()
 	lru.used = 0
+	lru.capacity = daoModelLruCacheCapacity
 }
 
 func (lru *modelLruCache) Get(key string) (ModelIfe, error) {
